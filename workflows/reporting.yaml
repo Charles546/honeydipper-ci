@@ -1,0 +1,59 @@
+---
+workflows:
+  hdci/report_yml_error:
+    if_match:
+      gh_event: push
+    threads:
+      - if:
+          - $?ctx.git_repo
+          - $?ctx.git_commit
+        description: notify hdci yml error in commit status
+        call_workflow: hdci/report_yml_error_{{ .ctx.hdci.vcs_flavor }}
+      - if:
+          - $?ctx.hdci.notify_in_chat
+        if_any:
+          - $?ctx.schema_error
+          - '{{ eq .labels.status "success" | not }}'
+        description: notify hdci yml error in chat
+        call_workflow: hdci/report_yml_error_{{ .ctx.hdci.chat_flavor }}
+
+  hdci/announce_script:
+    if:
+      - $?ctx.stage.settings.notify_steps,ctx.hdci.notify_steps
+    steps:
+      - if:
+          - $?ctx.hdci.notify_in_chat
+        call_workflow: hdci/announce_script_{{ .ctx.hdci.chat_flavor }}
+
+  hdci/announce_job:
+    if:
+      - $?ctx.hdci.notify_in_chat
+    call_workflow: hdci/announce_job_{{ .ctx.hdci.chat_flavor }}
+
+  hdci/report_job_result:    
+    if:
+      - $?ctx.stage.settings.notify_steps,ctx.hdci.notify_steps
+    steps:
+      - if:
+          - $?ctx.hdci.notify_in_chat
+        call_workflow: hdci/report_job_result_{{ .ctx.hdci.chat_flavor }}
+
+  hdci/announce_stage:
+    steps:
+      - if:
+          - $?ctx.git_repo
+          - $?ctx.git_commit
+        call_workflow: hdci/announce_stage_{{ .ctx.hdci.vcs_flavor }}
+      - if:
+          - $?ctx.hdci.notify_in_chat
+        call_workflow: hdci/announce_stage_{{ .ctx.hdci.chat_flavor }}
+
+  hdci/report_stage_result:
+    threads:
+      - if:
+          - $?ctx.git_repo
+          - $?ctx.git_commit
+        call_workflow: hdci/report_stage_result_{{ .ctx.hdci.vcs_flavor }}
+      - if:
+          - $?ctx.hdci.notify_in_chat
+        call_workflow: hdci/report_stage_result_{{ .ctx.hdci.chat_flavor }}

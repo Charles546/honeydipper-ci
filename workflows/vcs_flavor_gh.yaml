@@ -1,0 +1,73 @@
+---
+workflows:
+  hdci/load_cfg_gh:
+    context: _hdci_schema
+    with:
+      hooks:
+        on_exit: hdci/report_yml_error
+    no_export:
+      - file_content
+      - preliminary_hdci_cfg
+    steps:
+      - call_function: '{{ .ctx.gh_system }}.getContent'
+        with:
+          path: '.hdci.yml'
+        export:
+          preliminary_hdci_cfg: :yaml:{{ .ctx.file_content }}
+          schema_error: '{{ cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content }}'
+        export_on_error:
+          schema_error: $?ctx.schema_error,labels.reason
+        no_export:
+          - file_content
+      - unless:
+          - $?ctx.schema_error
+        iterate: $?ctx.preliminary_hdci_cfg.use_templates
+        steps:
+          - unless:
+              - $?ctx.schema_error
+            call_workflow: github_getContent
+            with:
+              github_system: $ctx.gh_system
+              path: $ctx.current
+            export:
+              hdci_cfg: :yaml:{{ .ctx.file_content }}
+              schema_error: '{{ cue_validate_error .ctx.hdci_file_schema .ctx.current .ctx.file_content }}'
+            export_on_error:
+              schema_error: $?ctx.schema_error,labels.reason
+            no_export:
+              - file_content
+        export:
+          hdci_cfg: $ctx.preliminary_hdci_cfg
+        export_on_error:
+          schema_error: $?ctx.schema_error,labels.reason
+        description: merging hdci config templates
+      - unless:
+          - $?ctx.schema_error
+        export:
+          schema_error: '{{ cue_validate_error .ctx.hdci_schema "merged" .ctx.hdci_cfg }}'
+        export_on_error:
+          schema_error: $?ctx.schema_error,labels.reason
+
+  hdci/report_yml_error_gh:
+    call_function: '{{ .ctx.gh_system }}.createStatus'
+    with:
+      context: hdci/cfg
+      status:
+        state: '{{ empty .ctx.schema_error | and (eq .labels.status "success") | ternary "success" "error" }}'
+        description: '{{ empty .ctx.schema_error | and (eq .labels.status "success") | ternary ".hdci.yml is valid" "missing or invalid .hdci.yml" }}'
+
+  hdci/announce_stage_gh:
+    call_function: '{{ .ctx.gh_system }}.createStatus'
+    with:
+      context: hdci/{{ .ctx.stage_name }}
+      status:
+        state: pending
+        description: $ctx.stage.gh_status_message.pending,"pipeline is running..."
+
+  hdci/report_stage_result_gh:
+    call_function: '{{ .ctx.gh_system }}.createStatus'
+    with:
+      context: hdci/{{ .ctx.stage_name }}
+      status:
+        state: $ctx.job_status,labels.status
+        description: $ctx.stage.gh_status_message.{{ coalesce .ctx.job_status .labels.status }},"pipeline is completed with status {{ coalesce .ctx.job_status .labels.status }}."

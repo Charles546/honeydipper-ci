@@ -1,0 +1,74 @@
+---
+workflows:
+  hdci:
+    context: _hdci
+    no_export:
+      - "*"
+    steps:
+      - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
+      - unless:
+          - $?ctx.schema_error
+        iterate: $?ctx.hdci_cfg.triggers
+        steps:
+          - if_match: $ctx.current.conditions
+            iterate_parallel: $ctx.current.stages
+            iterate_as: stage_name
+            call_workflow: hdci/stage
+        description: launch matching triggers
+
+  hdci/stage:
+    with:
+      - stage: $ctx.hdci_cfg.stages.{{ .ctx.stage_name }}
+      - script_flavor: $ctx.stage.settings.script_flavor,ctx.hdci.script_flavor
+    steps:
+      - call_workflow: hdci/prepare_stage_storage_{{ .ctx.script_flavor }}
+      - call_workflow: hdci/announce_stage
+      - with:
+          hooks:
+            on_exit:
+              - hdci/report_stage_result
+              - hdci/cleanup_stage_storage_{{ .ctx.script_flavor }}
+        iterate: $ctx.stage.jobs
+        description: iterating through stage steps
+        steps:
+          - unless:
+              - $?ctx.job_error
+            call_workflow: hdci/job
+
+  hdci/job:
+    with:
+      - predefined_job: $?ctx.hdci_cfg.jobs.{{ .ctx.current }}
+      - job: $ctx.predefined_job,ctx.current
+        job_name: '{{ with .ctx.predefined_job }}{{ $.ctx.current }}{{ else }}{{ $.ctx.job.job_name }}{{ end }}'
+    steps:
+      - call_workflow: hdci/announce_job
+      - if:
+          - $?ctx.job.workflow
+        on_error: continue
+        description: route to workflow or script
+        steps:
+          - call_workflow: $?ctx.job.workflow
+          - export:
+              job_status: $?ctx.workflow_status,labels.status
+              job_error: $?ctx.workflow_error,labels.reason
+              job_output: $?ctx.workflow_output
+              job_headline: 'Workflow: {{ .ctx.job.workflow }}'
+            description: collect result from workflow
+        else:
+          description: route to script
+          on_error: continue
+          steps:
+            - call_workflow: hdci/run_script
+            - export:
+                job_status: $?ctx.script_status,labels.status
+                job_error: $?ctx.script_error,labels.reason
+                job_output: $?ctx.script_log
+                job_headline: 'Job: {{ .ctx.job_name }}'
+              description: collect result from script
+      - call_workflow: hdci/report_job_result
+
+  hdci/run_script:
+    with:
+      - script: $?ctx.hdci_cfg.scripts.{{ dig "script_name" "_not_exists" .ctx.job }},ctx.job
+      - script: $ctx.job
+    call_workflow: hdci/run_script_{{ .ctx.script_flavor }}

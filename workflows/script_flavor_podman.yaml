@@ -1,0 +1,84 @@
+---
+workflows:
+  hdci/run_script_podman:
+    steps:
+      - iterate: $ctx.script.steps
+        call_workflow: hdci/podman_add_container
+        description: adding containers
+        export_on_error:
+          script_status: $labels.status
+          script_error: $labels.reason
+      - call_workflow: run_podman
+        with:
+          podman_on_start: hdci/announce_script
+          # podman_delete_on_success: true
+          podman_pod_spec:
+            volumes: $?ctx.script.volumes
+            env: $?ctx.script.env
+          podman_use_work_volume: $ctx.podman_volume_name
+          podman_work_volume_mount_point: $ctx.hdci.worker.work_dir,"/local/honeydipper"
+        export:
+          script_log: $?ctx.podman_pod_log
+          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
+          script_error: $?ctx.podman_error,labels.reason
+        export_on_error:
+          script_log: $?ctx.podman_pod_log
+          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
+          script_error: $?ctx.podman_error,labels.reason
+
+  hdci/prepare_stage_storage_podman:
+    with:
+      podman_system-: podman
+    call_function: '{{ .ctx.podman_system }}.create_volume'
+
+  hdci/cleanup_stage_storage_podman:
+    with:
+      podman_system-: podman
+    if_match:
+      step_status: success
+    call_function: '{{ .ctx.podman_system }}.delete_volume'
+
+  hdci/podman_add_container:
+    no_export:
+      - expanded
+    with:
+        - cfg: $?ctx.hdci_cfg.scripts.{{ .ctx.current }},ctx.current
+    steps:
+      - iterate: '{{ with .ctx.cfg.executor }}{{ if typeIs "string" . }}{{ list . | return }}{{ else }}{{ return . }}{{ end }}{{ else }}{{ return (list) }}{{ end }}'
+        steps:
+          - export:
+              expanded: $?ctx.hdci_cfg.executors.{{ .ctx.current }}
+        description: expand container with executor
+        export:
+          expanded: $ctx.cfg
+      - if:
+          - $?ctx.expanded.script_file
+        call_workflow: github_getContent
+        with:
+          github_system: .ctx.gh_system
+          path: $?ctx.expanded.script_file
+        export:
+          expanded:
+            run: $ctx.file_content
+        description: fetch remote script file
+      - with:
+          - current_container:
+              name: $?ctx.expanded.container_name
+              image: $ctx.expanded.image
+              entrypoint: $?ctx.expanded.entrypoint_
+              command: $?ctx.expanded.command_
+              volumes: $?ctx.expanded.volumes_
+              env: $?ctx.expanded.env
+              work_dir: $ctx.expanded.work_dir,ctx.hdci.worker.work_dir,"/local/honeydipper"
+            run: $?ctx.expanded.run_
+          - current_container:
+              entrypoint+: $?ctx.expanded.entrypoint
+              command+: $?ctx.expanded.command
+              volumes+: $?ctx.expanded.volumes
+            run+: $?ctx.expanded.run
+          - current_container:
+              command+: '{{ with .ctx.run }}{{ list . | return }}{{ end }}'                
+        export:
+          podman_containers+:
+            - $ctx.current_container
+        description: build container spec

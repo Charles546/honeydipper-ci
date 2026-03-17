@@ -1,0 +1,32 @@
+---
+rules:
+  - when:
+      source:
+        system: github_hdci
+        trigger: hit
+      export:
+        git_repo: $?event.json.repository.full_name
+        git_ref: $?event.json.ref
+        git_commit: $?event.json.head_commit.id,event.json.commit.sha
+        git_branches: $?event.json.branches
+        gh_event: $event.headers.X-Github-Event.0
+        gh_action: $?event.json.action
+        gh_issue: $?event.json.number
+        gh_status_context: $?event.json.context
+        gh_state: $?event.json.state
+    do:
+      contexts:
+        - mute
+      if:
+        - '{{ .ctx.git_repo }}'
+      unless_match:
+        - gh_event: status
+          gh_status_context: hdci/cfg
+        - gh_event: status
+          gh_state: pending
+        - gh_event: check_suite
+      call_workflow: hdci
+      description: HDCI GH event entrance
+      with:
+        gh_system: github_hdci
+        git_commit_short: '{{ default "" .ctx.git_commit | trunc 7 }}'

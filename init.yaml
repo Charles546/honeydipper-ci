@@ -1,0 +1,5 @@
+---
+includes:
+  - contexts.yaml
+  - rules.yaml
+  - workflows/*.yaml

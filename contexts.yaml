@@ -1,0 +1,43 @@
+---
+contexts:
+  _hdci:
+    hdci/run_script:
+      hdci:
+        script_flavor-: podman
+    "*":
+      hdci:
+        vcs_flavor-: gh
+        chat_flavor-: slack
+        chat_system-: slack_bot
+        script_flavor-: podman
+        notify_in_chat: true
+        # slack_notify:
+        #   - "#test"
+        notify_steps: true
+        # worker:
+        #   gh:
+        #     env:
+        #       GH_APP_PRIVATE_KEY: hd-lookup:/secrets/data/blah/daemon#github_app_ssh_key
+        #       GH_APP_ID: 'blah'
+        #       GH_APP_INSTALLATION_ID: 'blah'
+        #   identity:
+        #     sec_driver: /opt/honeydipper/drivers/builtin/hd-driver-vault
+        #     sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-e8a5972-podman
+        #     env:
+        #       VAULT_ADDR: http://blah:8200
+        #       VAULT_ROLE_ID: hd-secret-file://identity/role_id
+        #       VAULT_SECRET_ID: hd-secret-file://identity/secret_id
+        #       HD_SECURE_LOADER: '/local/honeydipper/hd-driver-vault'
+        #     volumes:
+        #       - name: hd-test-identity
+        #         dest: /var/hd-secrets/identity
+    
+    hdci/run_script_podman: &podman_system
+      podman_system: $ctx.stage.settings.podman_system,ctx.merged_hdci_cfg.settings.podman_system,"podman"
+    hdci/prepare_stage_volume_podman: *podman_system
+    hdci/cleanup_stage_volume_podman: *podman_system
+
+  _hdci_schema:
+    '*':
+      hdci_file_schema: '@:resources/hdci_file.cue'
+      hdci_schema: '@:resources/hdci.cue'
