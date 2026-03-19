@@ -9,11 +9,14 @@ workflows:
       - unless:
           - $?ctx.schema_error
         iterate: $?ctx.hdci_cfg.triggers
+        iterate_as: current_trigger
         steps:
           - if_match: $ctx.current.conditions
             iterate_parallel: $ctx.current.stages
             iterate_as: stage_name
             call_workflow: hdci/stage
+            with:
+              resume_key_prefix: 'hdci-{{ .labels.sessionID }}-{{ .ctx.git_repo }}-'
         description: launch matching triggers
 
   hdci/stage:
@@ -24,22 +27,40 @@ workflows:
       - call_workflow: hdci/prepare_stage_storage_{{ .ctx.script_flavor }}
       - call_workflow: hdci/announce_stage
       - with:
+          required_stages: $?ctx.stage.requires
           hooks:
             on_exit:
               - hdci/report_stage_result
               - hdci/cleanup_stage_storage_{{ .ctx.script_flavor }}
-        iterate: $ctx.stage.jobs
-        description: iterating through stage steps
+              - hdci/resume_dependent_stages
         steps:
-          - unless:
-              - $?ctx.job_error
-            call_workflow: hdci/job
+          - while:
+              - $?ctx.required_stages
+            steps:
+              - wait: "120m"
+                with:
+                  resume_key: '{{ .ctx.resume_key_prefix }}{{ .ctx.stage_name }}'
+                  timeout_message:
+                    labels:
+                      status: error
+                      reason: Timeout waiting for required stages
+                export:
+                  required_stages: '{{ without .ctx.required_stages .data.completed_stage | return }}'
+                export_on_error:
+                  stage_status: $labels.status
+                  stage_error: $labels.reason
+          - iterate: $ctx.stage.jobs
+            description: iterating through stage steps
+            steps:
+              - unless:
+                  - $?ctx.job_error
+                call_workflow: hdci/job
 
   hdci/job:
     with:
       - predefined_job: $?ctx.hdci_cfg.jobs.{{ .ctx.current }}
       - job: $ctx.predefined_job,ctx.current
-        job_name: '{{ with .ctx.predefined_job }}{{ $.ctx.current }}{{ else }}{{ $.ctx.job.job_name }}{{ end }}'
+        job_name: '{{ with .ctx.predefined_job }}{{ $.ctx.current }}{{ else }}{{ $.ctx.current.job_name }}{{ end }}'
     steps:
       - call_workflow: hdci/announce_job
       - if:
@@ -72,3 +93,21 @@ workflows:
       - script: $?ctx.hdci_cfg.scripts.{{ dig "script_name" "_not_exists" .ctx.job }},ctx.job
       - script: $ctx.job
     call_workflow: hdci/run_script_{{ .ctx.script_flavor }}
+
+  hdci/resume_dependent_stages:
+    iterate_parallel: $ctx.current_trigger.stages
+    steps:
+      - with:
+          stage_def: $?ctx.hdci_cfg.stages.{{ .ctx.current }}
+          resume_message:
+            labels:
+              status: $ctx.job_status,labels.status
+              reason: 'dependent stage status: {{ coalesce .ctx.job_status .labels.status }}'
+            payload:
+              completed_stage: $ctx.stage_name
+          fail_if_missing: true
+          backoff_limits: 4
+        if_match:
+          stage_def:
+            requires: $ctx.stage_name
+        resume: '{{ .ctx.resume_key_prefix }}{{ .ctx.current }}'

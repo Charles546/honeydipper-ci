@@ -4,6 +4,7 @@ import "list"
 
 #hdci_file: {
   use_templates?: [...string]
+  cache?: [string] : string
   "triggers"?: list.MinItems(1) & [...#trigger]
   "triggers+"?: list.MinItems(1) & [...#trigger]
   "triggers*"?: list.MinItems(1) & [...#trigger]
@@ -35,6 +36,7 @@ import "list"
       success?: string
       error?: string
     }
+    requires?: string | [...string]
   }
   
   #job_ref: string | #named_job_def
@@ -58,6 +60,9 @@ import "list"
     volumes?: string | [...]
     "volumes+"?: string | [...]
     "volumes++"?: string | [...]
+    cache?: string | [...string]
+    "cache+"?: string | [...string]
+    "cache++"?: string | [...string]
     env?: {...}
   }
 
@@ -100,6 +105,9 @@ import "list"
     "run_+"?: string
     "run_++"?: string
     env?: string | {...}
+    cache?: string | [...string]
+    "cache+"?: string | [...string]
+    "cache++"?: string | [...string]
     work_dir?: string
   }
 
@@ -114,6 +122,7 @@ import "list"
     command?: string | [...string]
     volumes?: string | [...]
     image?: string
+    cache?: string | [...string]
     env?: string | {...}
   }
 
@@ -144,6 +153,9 @@ import "list"
     "run_+"?: string
     "run_++"?: string
     env?: string | {...}
+    cache?: string | [...string]
+    "cache+"?: string | [...string]
+    "cache++"?: string | [...string]
     work_dir?: string
   }
 }

@@ -4,6 +4,7 @@ import "list"
 
 #hdci: {
   use_templates?: [...string]
+  cache?: [string]: string
   triggers?: list.MinItems(1) & [...#trigger]
   stages?: [string]: #stage
   jobs?: [string]: #job_def
@@ -17,6 +18,7 @@ import "list"
   #predefinedScripts: string & or([for k, _ in scripts {k}])
   #predefinedStages: string & or([for k, _ in stages {k}])
   #predefinedExecutors: string & or([for k, _ in executors {k}])
+  #predefinedCaches: string & or([for k, _ in cache {k}])
 
   #trigger: {
     conditions: {
@@ -37,6 +39,7 @@ import "list"
       success?: string
       error?: string
     }
+    requires?: [...#predefinedStages]
   }
   
   #job_ref: #predefinedJobs | #named_job_def
@@ -60,6 +63,7 @@ import "list"
     "volumes+"?: [...]
     image?: string
     env?: {...}
+    cache?: [...#predefinedCaches]
   }
 
   #with_run: {
@@ -92,6 +96,8 @@ import "list"
     "run_+"?: string
     image?: string
     env?: {...}
+    cache?: [...#predefinedCaches]
+    "cache+"?: [...#predefinedCaches]
   }
 
   #script_step_def: {
@@ -106,6 +112,7 @@ import "list"
     volumes?: [...]
     image?: string
     env?: {...}
+    cache?: [...#predefinedCaches]
   }
 
   #script_executor: {
@@ -127,6 +134,8 @@ import "list"
     run_?: string
     "run_+"?: string
     env?: {...}
+    cache?: [...#predefinedCaches]
+    "cache+"?: [...#predefinedCaches]
     work_dir?: string
   }
 }

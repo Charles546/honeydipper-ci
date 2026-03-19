@@ -1,7 +1,36 @@
 ---
 workflows:
   hdci/run_script_podman:
+    no_export:
+      - pod_cache_volumes
+      - all_cache_volumes
+    with:
+      pod_cache_volumes: $?nil
     steps:
+      - iterate: $?ctx.script.cache
+        no_export:
+          - podman_volume_name
+        steps:
+          - with:
+              podman_system-: podman
+              podman_volume_ignore_if_exists: true
+              podman_volume_name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
+            if:
+              - $?ctx.podman_volume_name
+            call_function: '{{ .ctx.podman_system }}.create_volume'
+            export_on_success:
+              pod_cache_volumes+:
+                - name: $ctx.podman_volume_name
+                  dest: $ctx.current
+        description: ensure cache volumes exist for the pod
+        export_on_success:
+          all_cache_volumes: $?ctx.pod_cache_volumes
+        export:
+          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
+          script_error: $?ctx.podman_error,labels.reason
+        export_on_error:
+          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
+          script_error: $?ctx.podman_error,labels.reason
       - iterate: $ctx.script.steps
         call_workflow: hdci/podman_add_container
         description: adding containers
@@ -10,13 +39,15 @@ workflows:
           script_error: $labels.reason
       - call_workflow: run_podman
         with:
-          podman_on_start: hdci/announce_script
-          # podman_delete_on_success: true
-          podman_pod_spec:
-            volumes: $?ctx.script.volumes
-            env: $?ctx.script.env
-          podman_use_work_volume: $ctx.podman_volume_name
-          podman_work_volume_mount_point: $ctx.hdci.worker.work_dir,"/local/honeydipper"
+          - podman_on_start: hdci/announce_script
+            # podman_delete_on_success: true
+            podman_pod_spec:
+              volumes: $?ctx.script.volumes
+              env: $?ctx.script.env
+            podman_use_work_volume: $ctx.podman_volume_name
+            podman_work_volume_mount_point: $ctx.hdci.worker.work_dir,"/local/honeydipper"
+          - podman_pod_spec:
+              volumes+: $?ctx.pod_cache_volumes
         export:
           script_log: $?ctx.podman_pod_log
           script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
@@ -41,26 +72,56 @@ workflows:
   hdci/podman_add_container:
     no_export:
       - expanded
+      - cache_volumes
+      - podman_volume_name
     with:
         - cfg: $?ctx.hdci_cfg.scripts.{{ .ctx.current }},ctx.current
+        - cache_volumes: $?nil
     steps:
       - iterate: '{{ with .ctx.cfg.executor }}{{ if typeIs "string" . }}{{ list . | return }}{{ else }}{{ return . }}{{ end }}{{ else }}{{ return (list) }}{{ end }}'
         steps:
           - export:
               expanded: $?ctx.hdci_cfg.executors.{{ .ctx.current }}
         description: expand container with executor
-        export:
+      - export:
           expanded: $ctx.cfg
+        description: final merging container cfg
       - if:
           - $?ctx.expanded.script_file
         call_workflow: github_getContent
         with:
-          github_system: .ctx.gh_system
+          github_system: $?ctx.gh_system
           path: $?ctx.expanded.script_file
-        export:
+        export_on_success:
           expanded:
             run: $ctx.file_content
         description: fetch remote script file
+      - iterate: $?ctx.expanded.cache
+        steps:
+          - with:
+              podman_system-: podman
+              podman_volume_ignore_if_exists: true
+              podman_volume_name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
+            if:
+              - $?ctx.podman_volume_name
+            unless_match:
+              all_cache_volumes:
+                name: $?ctx.podman_volume_name
+            call_function: '{{ .ctx.podman_system }}.create_volume'
+            export:
+              all_cache_volumes+:
+                - name: $ctx.podman_volume_name
+                  dest: $ctx.current
+          - with:
+              name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
+            if:
+              - $?ctx.name
+            export:
+              cache_volumes+:
+                - name: $?ctx.name
+                  dest: $ctx.current
+            descripotion: add to container cache volume
+        description: ensure cache volumes exist
       - with:
           - current_container:
               name: $?ctx.expanded.container_name
@@ -77,7 +138,8 @@ workflows:
               volumes+: $?ctx.expanded.volumes
             run+: $?ctx.expanded.run
           - current_container:
-              command+: '{{ with .ctx.run }}{{ list . | return }}{{ end }}'                
+              command+: '{{ with .ctx.run }}{{ list . | return }}{{ end }}'
+              volumes+: $?ctx.cache_volumes                
         export:
           podman_containers+:
             - $ctx.current_container
