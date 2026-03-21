@@ -55,6 +55,7 @@ scripts:
   github_checkout:
     run: |
       git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git" --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app &&
+      cd app &&
       git ls-tree -r --name-only HEAD | while read -r filename; do # restore the file mdate to take advantage of the caches
         touch -d "$(git log -1 --format="%ad" -- "$filename")" "$filename"
       done
