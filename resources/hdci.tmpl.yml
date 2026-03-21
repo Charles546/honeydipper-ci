@@ -53,7 +53,7 @@ scripts:
     skip_executors:  "*"
 
   github_checkout:
-    run: 'git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git" --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | base -}} }" app'
+    run: 'git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git" --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app'
     executor: gh_with_app
     skip_executors: "*"
 
