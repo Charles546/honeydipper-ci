@@ -31,7 +31,14 @@ workflows:
         export_on_error:
           script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
           script_error: $?ctx.podman_error,labels.reason
-      - iterate: $ctx.script.steps
+      - with:
+          - script_steps: |
+              {{ $st := list }}{{ if (toString .ctx.script.skip_steps | eq "*" | not) }}
+              {{ $skip_list := (default (list) .ctx.script.skip_steps ) }}
+              {{ range .ctx.hdci_cfg.default_script_steps }}{{ if (has . $skip_list | not) }}{{ $st = append $st . }}{{ end }}{{ end }}
+              {{ end }}{{ return $st }}
+          - script_steps+: $ctx.script.steps
+        iterate: $ctx.script_steps
         call_workflow: hdci/podman_add_container
         description: adding containers
         export_on_error:
@@ -78,7 +85,14 @@ workflows:
         - cfg: $?ctx.hdci_cfg.scripts.{{ .ctx.current }},ctx.current
         - cache_volumes: $?nil
     steps:
-      - iterate: '{{ with .ctx.cfg.executor }}{{ if typeIs "string" . }}{{ list . | return }}{{ else }}{{ return . }}{{ end }}{{ else }}{{ return (list) }}{{ end }}'
+      - with:
+          - step_executors: |
+              {{ $ex := list }}{{ if (toString .ctx.cfg.skip_executors | eq "*" | not) }}
+              {{ $skip_list := (default (list) .ctx.cfg.skip_executors) }}
+              {{ range .ctx.hdci_cfg.default_executors }}{{ if (has . $skip_list | not) }}{{ $ex = append $ex . }}{{ end }}{{ end }}
+              {{ end }}{{ return $ex }}
+          - step_executors+: '{{ with .ctx.cfg.executor }}{{ if typeIs "string" . }}{{ list . | return }}{{ else }}{{ return . }}{{ end }}{{ else }}{{ return (list) }}{{ end }}'
+        iterate: $ctx.step_executors
         steps:
           - export:
               expanded: $?ctx.hdci_cfg.executors.{{ .ctx.current }}

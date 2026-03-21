@@ -20,6 +20,9 @@ import "list"
   #predefinedExecutors: string & or([for k, _ in executors {k}])
   #predefinedCaches: string & or([for k, _ in cache {k}])
 
+  default_executors?: [...#predefinedExecutors]
+  default_script_steps?: [...#predefinedScripts]
+
   #trigger: {
     conditions: {
       gh_event!: "push" | "status" | "release" | "pull_request" | "issue_comment"
@@ -64,7 +67,9 @@ import "list"
     image?: string
     env?: {...}
     cache?: [...#predefinedCaches]
-  }
+    skip_steps?: "*" | [...#predefinedScripts]
+    "skip_steps+"?: "*" | [...#predefinedScripts]
+}
 
   #with_run: {
     run: string
@@ -98,6 +103,8 @@ import "list"
     env?: {...}
     cache?: [...#predefinedCaches]
     "cache+"?: [...#predefinedCaches]
+    skip_executors?: "*" | [...#predefinedExecutors]
+    "skip_executors+"?: "*" | [...#predefinedExecutors]
   }
 
   #script_step_def: {
@@ -113,6 +120,7 @@ import "list"
     image?: string
     env?: {...}
     cache?: [...#predefinedCaches]
+    skip_executors?: "*" | [...#predefinedExecutors]
   }
 
   #script_executor: {

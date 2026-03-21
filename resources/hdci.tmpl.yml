@@ -1,0 +1,62 @@
+---
+executors:
+  with_secret_driver: &with_secret_driver
+    entrypoint_:
+      - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
+    env: $ctx.hdci.worker.identity.env
+    volumes_: $ctx.hdci.worker.identity.volumes
+
+  sh-c: &sh-c
+    command_++: &sh-c-command
+      - /bin/sh
+      - -c
+
+  with_gh_app_creds: &with_gh_app_creds
+    env: $ctx.hdci.worker.gh.env
+
+  gh: &gh_executor
+    <<:
+      - *with_secret_driver
+      - *sh-c
+    entrypoint_+: &gh_entrypoint
+      - '/entrypoint.sh'
+    image: 'docker.io/serversideup/github-cli:alpine'
+    run_: |+
+      git config --global credential."https://github.com/".helper "!gh app-auth git-credential"
+
+  gh_with_app:
+    <<:
+      - *gh_executor
+      - *with_gh_app_creds
+    run_+: |+
+      gh extension install AmadeusITGroup/gh-app-auth
+      unset GH_APP_PRIVATE_KEY
+
+  run_in_repo:
+    run_++: |+
+      cd app
+
+default_executors:
+  - with_secret_driver
+  - sh-c
+  - run_in_repo
+
+scripts:
+  load_secret_driver:
+    entrypoint_: ['/bin/sh', '-c']
+    env:
+      SEC_DRIVER: $ctx.hdci.worker.identity.sec_driver
+      WORK_DIR: $ctx.hdci.worker.work_dir,"/local/honeydipper"
+    image: $ctx.hdci.worker.identity.sec_driver_image
+    run_: 'cp $SEC_DRIVER $(dirname $SEC_DRIVER)/docker-entrypoint.sh "$WORK_DIR" && echo sec driver copied'
+    run: ""
+    skip_executors:  "*"
+
+  github_checkout:
+    run: 'git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git" --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | base -}} }" app'
+    executor: gh_with_app
+    skip_executors: "*"
+
+default_script_steps:
+  - load_secret_driver
+  - github_checkout

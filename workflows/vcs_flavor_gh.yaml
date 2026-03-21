@@ -15,6 +15,7 @@ workflows:
         export:
           preliminary_hdci_cfg: :yaml:{{ .ctx.file_content }}
           schema_error: '{{ cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content }}'
+          root_hdci_cfg: $?ctx.file_content
         export_on_error:
           schema_error: $?ctx.schema_error,labels.reason
         no_export:
@@ -37,7 +38,7 @@ workflows:
             no_export:
               - file_content
         export:
-          hdci_cfg: $ctx.preliminary_hdci_cfg
+          hdci_cfg: :yaml:{{ .ctx.root_hdci_cfg }}
         export_on_error:
           schema_error: $?ctx.schema_error,labels.reason
         description: merging hdci config templates

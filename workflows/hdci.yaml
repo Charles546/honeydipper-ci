@@ -24,7 +24,6 @@ workflows:
       - stage: $ctx.hdci_cfg.stages.{{ .ctx.stage_name }}
       - script_flavor: $ctx.stage.settings.script_flavor,ctx.hdci.script_flavor
     steps:
-      - call_workflow: hdci/prepare_stage_storage_{{ .ctx.script_flavor }}
       - call_workflow: hdci/announce_stage
       - with:
           required_stages: $?ctx.stage.requires
@@ -34,6 +33,7 @@ workflows:
               - hdci/cleanup_stage_storage_{{ .ctx.script_flavor }}
               - hdci/resume_dependent_stages
         steps:
+          - call_workflow: hdci/prepare_stage_storage_{{ .ctx.script_flavor }}
           - while:
               - $?ctx.required_stages
             steps:

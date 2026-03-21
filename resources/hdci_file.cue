@@ -16,6 +16,11 @@ import "list"
     ...
   }
 
+  default_executors?: string | [...string]
+  "default_executors+"?: string | [...string]
+  default_script_steps?: string | [...string]
+  "default_script_steps+"?: string | [...string]
+
   #trigger: {
     conditions: {
       gh_event!: "push" | "status" | "release" | "pull_request" | "issue_comment"
@@ -64,6 +69,9 @@ import "list"
     "cache+"?: string | [...string]
     "cache++"?: string | [...string]
     env?: {...}
+    skip_steps?: string | [...string]
+    "skip_steps+"?: string | [...string]
+    "skip_steps++"?: string | [...string]
   }
 
   #with_run: {
@@ -109,6 +117,9 @@ import "list"
     "cache+"?: string | [...string]
     "cache++"?: string | [...string]
     work_dir?: string
+    skip_executors?: string | [...string]
+    "skip_executors+"?: string | [...string]
+    "skip_executors++"?: string | [...string]
   }
 
   #script_step_def: {
@@ -124,6 +135,7 @@ import "list"
     image?: string
     cache?: string | [...string]
     env?: string | {...}
+    skip_executors?: string | [...string]
   }
 
   #script_executor: {

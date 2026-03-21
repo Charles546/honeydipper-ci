@@ -7,6 +7,9 @@ workflows:
       - if:
           - $?ctx.git_repo
           - $?ctx.git_commit
+        if_any:
+          - $?ctx.schema_error
+          - '{{ eq .labels.status "success" | not }}'        
         description: notify hdci yml error in commit status
         call_workflow: hdci/report_yml_error_{{ .ctx.hdci.vcs_flavor }}
       - if:
