@@ -131,6 +131,9 @@ import "list"
     executor?: string | [...string]
     entrypoint?: string | [...string]
     command?: string | [...string]
+    run_?: string
+    "run_+"?: string
+    "run_++"?: string
     volumes?: string | [...]
     image?: string
     cache?: string | [...string]

@@ -116,6 +116,8 @@ import "list"
     executor?: #predefinedExecutors | [...#predefinedExecutors]
     entrypoint?: [...string]
     command?: [...string]
+    run_?: string
+    "run_+"?: string
     volumes?: [...]
     image?: string
     env?: {...}
