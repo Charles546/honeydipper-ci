@@ -150,7 +150,7 @@ workflows:
               entrypoint+: $?ctx.expanded.entrypoint
               command+: $?ctx.expanded.command
               volumes+: $?ctx.expanded.volumes
-            run+: $?ctx.expanded.run
+            run+: "{{ with .ctx.expanded.run }}\n{{ . }}{{ end }}"
           - current_container:
               command+: '{{ with .ctx.run }}{{ list . | return }}{{ end }}'
               volumes+: $?ctx.cache_volumes                

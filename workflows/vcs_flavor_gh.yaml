@@ -8,6 +8,7 @@ workflows:
     no_export:
       - file_content
       - preliminary_hdci_cfg
+      - root_hdci_cfg
     steps:
       - call_function: '{{ .ctx.gh_system }}.getContent'
         with:

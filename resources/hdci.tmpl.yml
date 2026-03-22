@@ -29,11 +29,13 @@ executors:
       - *gh_executor
       - *with_gh_app_creds
     run_+: |+
+
       gh extension install AmadeusITGroup/gh-app-auth
       unset GH_APP_PRIVATE_KEY
 
   run_in_repo:
     run_++: |+
+    
       cd app
 
 default_executors:
