@@ -14,6 +14,13 @@ rules:
         gh_issue: $?event.json.number
         gh_status_context: $?event.json.context
         gh_state: $?event.json.state
+        _meta_event: >-
+          {{ index .event.headers "X-Github-Event" 0 }}
+          {{ .event.json.repository.full_name }}
+          {{ coalesce .event.json.head_commit.id .event.json.commit.sha "" | trunc 7 | coalesce .event.json.ref }}
+          {{ with coalesce .event.json.action .event.json.state }}{{ . }}{{ end }}
+          {{ with .event.json.number }}#{{ . }}{{ end }}
+          {{ with .event.json.context }}({{ . }}){{ end }}
     do:
       contexts:
         - mute

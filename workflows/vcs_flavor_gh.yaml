@@ -10,9 +10,10 @@ workflows:
       - preliminary_hdci_cfg
       - root_hdci_cfg
     steps:
-      - call_function: '{{ .ctx.gh_system }}.getContent'
+      - call_workflow: github_getContent
         with:
           path: '.hdci.yml'
+          github_system: $ctx.gh_system
         export:
           preliminary_hdci_cfg: :yaml:{{ .ctx.file_content }}
           schema_error: '{{ cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content }}'

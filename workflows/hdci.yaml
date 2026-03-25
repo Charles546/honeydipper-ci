@@ -3,7 +3,7 @@ workflows:
   hdci:
     context: _hdci
     no_export:
-      - "*"
+      - hdci_cfg
     steps:
       - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
       - unless:
@@ -17,7 +17,14 @@ workflows:
             call_workflow: hdci/stage
             with:
               resume_key_prefix: 'hdci-{{ .labels.sessionID }}-{{ .ctx.git_repo }}-'
+            export:
+              matched_triggers+:
+                - $ctx.current_trigger
         description: launch matching triggers
+        export:
+          _effectively_noop: '{{ empty .ctx.matched_triggers | return }}'
+        no_export:
+          - matched_triggers
 
   hdci/stage:
     with:
