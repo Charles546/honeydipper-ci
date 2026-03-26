@@ -20,6 +20,7 @@ workflows:
             export:
               matched_triggers+:
                 - $ctx.current_trigger
+            description: '{{ with .ctx.stage_name }}{{ . }}{{ end }} - stage'
         description: launch matching triggers
         export:
           _effectively_noop: '{{ empty .ctx.matched_triggers | return }}'
@@ -72,28 +73,39 @@ workflows:
       - call_workflow: hdci/announce_job
       - if:
           - $?ctx.job.workflow
-        on_error: continue
         description: route to workflow or script
-        steps:
-          - call_workflow: $?ctx.job.workflow
-          - export:
-              job_status: $?ctx.workflow_status,labels.status
-              job_error: $?ctx.workflow_error,labels.reason
-              job_output: $?ctx.workflow_output
-              job_headline: 'Workflow: {{ .ctx.job.workflow }}'
-            description: collect result from workflow
+        with:
+          hooks:
+            on_exit:
+              - hdci/report_job_result
+        call_workflow: $?ctx.job.workflow
+        export:
+          job_status: $?ctx.workflow_status,labels.status
+          job_error: $?ctx.workflow_error,labels.reason
+          job_output: $?ctx.workflow_output
+          job_headline: 'Workflow: {{ .ctx.job.workflow }}'
+        export_on_error:
+          job_status: $?ctx.workflow_status,labels.status
+          job_error: $?ctx.workflow_error,labels.reason
+          job_output: $?ctx.workflow_output
+          job_headline: 'Workflow: {{ .ctx.job.workflow }}'
         else:
+          with:
+            hooks:
+              on_exit:
+                - hdci/report_job_result
           description: route to script
-          on_error: continue
-          steps:
-            - call_workflow: hdci/run_script
-            - export:
-                job_status: $?ctx.script_status,labels.status
-                job_error: $?ctx.script_error,labels.reason
-                job_output: $?ctx.script_log
-                job_headline: 'Job: {{ .ctx.job_name }}'
-              description: collect result from script
-      - call_workflow: hdci/report_job_result
+          call_workflow: hdci/run_script
+          export:
+            job_status: $?ctx.script_status,labels.status
+            job_error: $?ctx.script_error,labels.reason
+            job_output: $?ctx.script_log
+            job_headline: 'Job: {{ .ctx.job_name }}'
+          export_on_error:
+            job_status: $?ctx.script_status,labels.status
+            job_error: $?ctx.script_error,labels.reason
+            job_output: $?ctx.script_log
+            job_headline: 'Job: {{ .ctx.job_name }}'
 
   hdci/run_script:
     with:
