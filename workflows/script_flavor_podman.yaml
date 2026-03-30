@@ -47,7 +47,6 @@ workflows:
       - call_workflow: run_podman
         with:
           - podman_on_start: hdci/announce_script
-            # podman_delete_on_success: true
             podman_pod_spec:
               volumes: $?ctx.script.volumes
               env: $?ctx.script.env
