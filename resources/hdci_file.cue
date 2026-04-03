@@ -62,9 +62,6 @@ import "list"
     steps: string | [...(string | #script_step_def)]
     "steps+"?: string | [...(string | #script_step_def)]
     "steps++"?: string | [...(string | #script_step_def)]
-    volumes?: string | [...]
-    "volumes+"?: string | [...]
-    "volumes++"?: string | [...]
     cache?: string | [...string]
     "cache+"?: string | [...string]
     "cache++"?: string | [...string]
@@ -103,12 +100,6 @@ import "list"
     command_?: string | [...string]
     "command_+"?: string | [...string]
     "command_++"?: string | [...string]
-    volumes?: string | [...]
-    "volumes+"?: string | [...]
-    "volumes++"?: string | [...]
-    volumes_?: string | [...]
-    "volumes_+"?: string | [...]
-    "volumes_++"?: string | [...]
     run_?: string
     "run_+"?: string
     "run_++"?: string
@@ -134,7 +125,6 @@ import "list"
     run_?: string
     "run_+"?: string
     "run_++"?: string
-    volumes?: string | [...]
     image?: string
     cache?: string | [...string]
     env?: string | {...}
@@ -155,12 +145,6 @@ import "list"
     command_?: string | [...string]
     "command_+"?: string | [...string]
     "command_++"?: string | [...string]
-    volumes?: string | [...]
-    "volumes+"?: string | [...]
-    "volumes++"?: string | [...]
-    volumes_?: string | [...]
-    "volumes_+"?: string | [...]
-    "volumes_++"?: string | [...]
     run?: string
     "run+"?: string
     "run++"?: string

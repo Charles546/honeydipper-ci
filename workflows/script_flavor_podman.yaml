@@ -133,7 +133,7 @@ workflows:
               cache_volumes+:
                 - name: $?ctx.name
                   dest: $ctx.current
-            descripotion: add to container cache volume
+            description: add to container cache volume
         description: ensure cache volumes exist
       - with:
           - current_container:
@@ -142,7 +142,15 @@ workflows:
               entrypoint: $?ctx.expanded.entrypoint_
               command: $?ctx.expanded.command_
               volumes: $?ctx.expanded.volumes_
-              env: $?ctx.expanded.env
+              env: |
+                {{ $ret := dict }}{{ range $key, $value := .ctx.expanded.env }}
+                {{ if hasPrefix "hd-lookup:" $value }}
+                {{ _ = set $ret $key (trimPrefix "hd-lookup:" $value | printf "hd-lookup:{SCOPED}%s" ) }}
+                {{ else }}
+                {{ _ = set $ret $key $value }}
+                {{ end }}
+                {{ end }}
+                {{ return $ret }}
               work_dir: $ctx.expanded.work_dir,ctx.hdci.worker.work_dir,"/local/honeydipper"
             run: $?ctx.expanded.run_
           - current_container:

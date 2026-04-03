@@ -8,12 +8,6 @@ workflows:
         message_type: error
         message: |
           failed to load .hdci.yml `{{ .ctx.git_repo }}`{{ with .ctx.git_ref }} `{{ . }}`{{ end }}
-          {{- with .ctx.schema_error }}
-          schema error:
-          ```
-          {{ . }}
-          ```
-          {{- end -}}
           {{- with .labels.reason }}
           reason:
           ```

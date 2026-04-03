@@ -11,6 +11,7 @@ contexts:
         chat_system-: slack_bot
         script_flavor-: podman
         notify_in_chat: true
+        gh_system_pat: github_pat
         # slack_notify:
         #   - "#test"
         notify_steps: true
@@ -41,3 +42,41 @@ contexts:
     '*':
       hdci_file_schema: '@:resources/hdci_file.cue'
       hdci_schema: '@:resources/hdci.cue'
+
+      hdci_builtin_cfg:
+        executors:
+          with_secret_driver**:
+            entrypoint_:
+              - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
+            env:
+              SECRET_PREFIX_1_REPO: 'secrets/data/hdci/gh/{{ .ctx.git_repo }}#'
+              SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ base .ctx.git_repo }}/_org#'
+            env-: $ctx.hdci.worker.identity.env
+            volumes_:
+              - name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
+                dest: /var/hd-secrets/identity
+
+
+        scripts:
+          load_secret_driver**:
+            entrypoint_: ['/bin/sh', '-c']
+            env:
+              SEC_DRIVER: $ctx.hdci.worker.identity.sec_driver
+              WORK_DIR: $ctx.hdci.worker.work_dir,"/local/honeydipper"
+            image: $ctx.hdci.worker.identity.sec_driver_image
+            run_: 'cp $SEC_DRIVER $(dirname $SEC_DRIVER)/docker-entrypoint.sh "$WORK_DIR" && echo sec driver copied'
+            run: ""
+            skip_executors:  "*"
+
+          github_checkout**:
+            env-: $ctx.hdci.worker.identity.env
+            env: $ctx.hdci.worker.gh.env
+            run_: |+
+              gh extension install AmadeusITGroup/gh-app-auth
+              unset GH_APP_PRIVATE_KEY
+            run: >
+              git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git"
+                --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app
+            skip_executors: "run_in_repo"
+            volumes_*:
+              - $ctx.hdci.worker.identity.volumes

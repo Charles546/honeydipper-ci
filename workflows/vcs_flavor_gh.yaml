@@ -15,49 +15,42 @@ workflows:
           path: '.hdci.yml'
           github_system: $ctx.gh_system
         export:
-          preliminary_hdci_cfg: :yaml:{{ .ctx.file_content }}
-          schema_error: '{{ cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content }}'
+          preliminary_hdci_cfg: :yaml_safe:{{ .ctx.file_content }}
+          schema_error: '{{ with (cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content) }}{{ fail . }}{{ end }}'
           root_hdci_cfg: $?ctx.file_content
-        export_on_error:
-          schema_error: $?ctx.schema_error,labels.reason
         no_export:
           - file_content
       - unless:
           - $?ctx.schema_error
         iterate: $?ctx.preliminary_hdci_cfg.use_templates
         steps:
-          - unless:
-              - $?ctx.schema_error
-            call_workflow: github_getContent
+          - call_workflow: github_getContent
             with:
-              github_system: $ctx.gh_system
-              path: $ctx.current
+              github_system: $ctx.hdci.gh_system_pat
+              path: '{{ if typeIs "string" .ctx.current }}{{ .ctx.current }}{{ else }}{{ .ctx.current.file }}{{ end }}'
+              github_pats:
+                - '{{ if not (typeIs "string" .ctx.current) }}lookup:{{ .ctx.hdci.sec_driver }},?/secrets/data/hdci/gh/{{ .ctx.git_repo }}#{{ .ctx.current.github_pat_secret }}{{ end }}'
+                - '{{ if not (typeIs "string" .ctx.current) }}lookup:{{ .ctx.hdci.sec_driver }},?/secrets/data/hdci/gh/{{ dir .ctx.git_repo }}/_org#{{ .ctx.current.github_pat_secret }}{{ end }}'
+                - 'lookup:{{ .ctx.hdci.sec_driver }},?/secrets/data/hdci/gh/{{ .ctx.git_repo }}#github_pat'
+                - 'lookup:{{ .ctx.hdci.sec_driver }},/secrets/data/hdci/gh/{{ dir .ctx.git_repo }}/_org#github_pat'
             export:
-              hdci_cfg: :yaml:{{ .ctx.file_content }}
-              schema_error: '{{ cue_validate_error .ctx.hdci_file_schema .ctx.current .ctx.file_content }}'
-            export_on_error:
-              schema_error: $?ctx.schema_error,labels.reason
+              hdci_cfg: :yaml_safe:{{ .ctx.file_content }}
+              schema_error: '{{ with (cue_validate_error .ctx.hdci_file_schema .ctx.current .ctx.file_content) }}{{ fail . }}{{ end }}'
             no_export:
               - file_content
+          - export:
+              hdci_cfg: :yaml_safe:{{ .ctx.root_hdci_cfg }}
         export:
-          hdci_cfg: :yaml:{{ .ctx.root_hdci_cfg }}
-        export_on_error:
-          schema_error: $?ctx.schema_error,labels.reason
+          hdci_cfg: $ctx.hdci_builtin_cfg
         description: merging hdci config templates
-      - unless:
-          - $?ctx.schema_error
-        export:
-          schema_error: '{{ cue_validate_error .ctx.hdci_schema "merged" .ctx.hdci_cfg }}'
-        export_on_error:
-          schema_error: $?ctx.schema_error,labels.reason
 
   hdci/report_yml_error_gh:
     call_function: '{{ .ctx.gh_system }}.createStatus'
     with:
       context: hdci/cfg
       status:
-        state: '{{ empty .ctx.schema_error | and (eq .labels.status "success") | ternary "success" "error" }}'
-        description: '{{ empty .ctx.schema_error | and (eq .labels.status "success") | ternary ".hdci.yml is valid" "missing or invalid .hdci.yml" }}'
+        state: '{{ eq .labels.status "success" | ternary "success" "error" }}'
+        description: '{{ eq .labels.status "success" | ternary ".hdci.yml is valid" "missing or invalid .hdci.yml" }}'
 
   hdci/announce_stage_gh:
     call_function: '{{ .ctx.gh_system }}.createStatus'

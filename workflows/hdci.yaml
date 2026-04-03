@@ -6,9 +6,7 @@ workflows:
       - hdci_cfg
     steps:
       - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
-      - unless:
-          - $?ctx.schema_error
-        iterate: $?ctx.hdci_cfg.triggers
+      - iterate: $?ctx.hdci_cfg.triggers
         iterate_as: current_trigger
         steps:
           - if_match: $ctx.current.conditions
