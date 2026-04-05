@@ -10,11 +10,20 @@ contexts:
         chat_flavor-: slack
         chat_system-: slack_bot
         script_flavor-: podman
+        identity_flavor-: vault
         notify_in_chat: true
         gh_system_pat: github_pat
         # slack_notify:
         #   - "#test"
         notify_steps: true
+        worker:
+          identity:
+            sec_driver: /opt/honeydipper/drivers/builtin/hd-driver-vault
+            sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-0235747-podman
+            env:
+              SECRET_PREFIX_1_REPO: 'secrets/data/hdci/gh/{{ .ctx.git_repo }}#'
+              SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ base .ctx.git_repo }}/_org#'
+              HD_SECURE_LOADER: '/local/honeydipper/hd-driver-vault'
         # worker:
         #   gh:
         #     env:
@@ -42,16 +51,14 @@ contexts:
     '*':
       hdci_file_schema: '@:resources/hdci_file.cue'
       hdci_schema: '@:resources/hdci.cue'
+      per_repo_identity_volume_name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
 
       hdci_builtin_cfg:
         executors:
-          with_secret_driver**:
+          with_secret_driver**: &with_secret_driver
             entrypoint_:
               - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
-            env:
-              SECRET_PREFIX_1_REPO: 'secrets/data/hdci/gh/{{ .ctx.git_repo }}#'
-              SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ base .ctx.git_repo }}/_org#'
-            env-: $ctx.hdci.worker.identity.env
+            env_: $ctx.hdci.worker.identity.env
             volumes_:
               - name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
                 dest: /var/hd-secrets/identity
@@ -60,23 +67,29 @@ contexts:
         scripts:
           load_secret_driver**:
             entrypoint_: ['/bin/sh', '-c']
-            env:
+            env_:
               SEC_DRIVER: $ctx.hdci.worker.identity.sec_driver
               WORK_DIR: $ctx.hdci.worker.work_dir,"/local/honeydipper"
             image: $ctx.hdci.worker.identity.sec_driver_image
-            run_: 'cp $SEC_DRIVER $(dirname $SEC_DRIVER)/docker-entrypoint.sh "$WORK_DIR" && echo sec driver copied'
+            run_: >-
+              cp  $SEC_DRIVER $(dirname $SEC_DRIVER)/docker-entrypoint.sh $(dirname $SEC_DRIVER)/web "$WORK_DIR" && echo sec driver copied.
             run: ""
-            skip_executors:  "*"
+            skip_executors: "*"
 
           github_checkout**:
-            env-: $ctx.hdci.worker.identity.env
-            env: $ctx.hdci.worker.gh.env
+            command:
+              - /bin/sh
+              - -c
+            entrypoint_:
+              - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
+              - '/entrypoint.sh'
+            env_: '{{ merge (deepCopy .ctx.hdci.worker.identity.env) .ctx.hdci.worker.gh.env | return }}'
+            image: 'docker.io/serversideup/github-cli:alpine'
             run_: |+
-              gh extension install AmadeusITGroup/gh-app-auth
-              unset GH_APP_PRIVATE_KEY
-            run: >
-              git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git"
+              set -e
+              git config --global credential."https://github.com/".helper "!gh app-auth git-credential"
+              GH_TOKEN="$(./web cli token github)" git clone https://github.com/"${GITHUB_REPO:-{{ .ctx.git_repo -}} }.git" \
                 --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app
-            skip_executors: "run_in_repo"
-            volumes_*:
-              - $ctx.hdci.worker.identity.volumes
+              exit
+            skip_executors: "*"
+            volumes: $ctx.hdci.worker.identity.volumes

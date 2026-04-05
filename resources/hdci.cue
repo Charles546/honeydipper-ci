@@ -4,7 +4,7 @@ import "list"
 
 #hdci: {
   use_templates?: [...string]
-  cache?: [string]: string
+  cache?: [...string]
   triggers?: list.MinItems(1) & [...#trigger]
   stages?: [string]: #stage
   jobs?: [string]: #job_def
@@ -66,6 +66,7 @@ import "list"
     "volumes+"?: [...]
     image?: string
     env?: {...}
+    env_?: {...}
     cache?: [...#predefinedCaches]
     skip_steps?: "*" | [...#predefinedScripts]
     "skip_steps+"?: "*" | [...#predefinedScripts]
@@ -101,6 +102,7 @@ import "list"
     "run_+"?: string
     image?: string
     env?: {...}
+    env_?: {...}
     cache?: [...#predefinedCaches]
     "cache+"?: [...#predefinedCaches]
     skip_executors?: "*" | [...#predefinedExecutors]
@@ -121,6 +123,7 @@ import "list"
     volumes?: [...]
     image?: string
     env?: {...}
+    env_?: {...}
     cache?: [...#predefinedCaches]
     skip_executors?: "*" | [...#predefinedExecutors]
   }
@@ -144,6 +147,7 @@ import "list"
     run_?: string
     "run_+"?: string
     env?: {...}
+    env_?: {...}
     cache?: [...#predefinedCaches]
     "cache+"?: [...#predefinedCaches]
     work_dir?: string

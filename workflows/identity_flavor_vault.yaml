@@ -1,0 +1,61 @@
+---
+workflows:
+  # requires:
+  #   - hdci.script_flavor
+  #   - per_repo_identity_volume_name
+  #   - git_repo
+  #   - hdci_builtin_cfg (_hdci_schema)
+  #   - hdci_worker_auth_folder (optional, defaults to "approle")
+  hdci/create_identity_vault:
+    call_workflow: hdci/run_script_{{ .ctx.hdci.script_flavor }}
+    context: _hdci_schema
+    no_export:
+      - "*"
+    with:
+      - hdci_cfg: $ctx.hdci_builtin_cfg
+        podman_volume_name: $ctx.per_repo_identity_volume_name
+      - script:
+          skip_steps: "*"
+          steps:
+            - load_secret_driver
+            - command:
+                - /bin/sh
+                - -c
+              executor: with_secret_driver
+              env:
+                ID_ROLE_NAME: 'gh-{{ .ctx.git_repo | replace "/" "-" }}'
+                ID_ROLE_FOLDER: $ctx.hdci_worker_auth_folder,"approle"
+                GIT_REPO: $ctx.git_repo
+              image: hashicorp/vault:latest
+              run: |
+                set -e
+                if [ -z "$VAULT_TOKEN" ]; then
+                  VAULT_TOKEN="$(vault write -field=token auth/approle/login role_id="${VAULT_ROLE_ID}" secret_id="${VAULT_SECRET_ID}")"
+                  export VAULT_TOKEN
+                fi
+
+                if [ -z "$ID_ROLE_FOLDER" ]; then
+                  ID_ROLE_FOLDER="approle"
+                fi
+
+                if [ ! -f /local/honeydipper/role_id ] || [ ! -f /local/honeydipper/secret_id ]; then
+                  vault write auth/"${ID_ROLE_FOLDER}"/role/"${ID_ROLE_NAME}" \
+                    token_ttl=20m \
+                    token_max_ttl=30m
+                  vault read -field=role_id auth/"${ID_ROLE_FOLDER}"/role/"${ID_ROLE_NAME}"/role-id > /local/honeydipper/role_id
+                  vault write -f -field=secret_id auth/"${ID_ROLE_FOLDER}"/role/"${ID_ROLE_NAME}"/secret-id > /local/honeydipper/secret_id
+                fi
+
+                if [ ! -f /local/honeydipper/entity_id.txt ]; then
+                  vault write -field=id identity/entity name="${ID_ROLE_NAME}" policies="hdci-per-repo" metadata=repo="gh/$GIT_REPO" > /local/honeydipper/entity_id.txt
+                fi
+                
+                if [ ! -f /local/honeydipper/accessor.txt ]; then
+                  ACCESSOR="$(vault auth list | grep -w "${ID_ROLE_FOLDER}/" | awk '{print $3}')"
+                  vault write identity/entity-alias name="$(cat /local/honeydipper/role_id)" \
+                    canonical_id="$(cat /local/honeydipper/entity_id.txt)" \
+                    mount_accessor="$ACCESSOR"
+                  echo "$ACCESSOR" > /local/honeydipper/accessor.txt
+                fi
+              skip_executors: "*"
+              volumes_**: $ctx.hdci.worker.identity.volumes

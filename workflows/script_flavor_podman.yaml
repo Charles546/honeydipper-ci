@@ -81,7 +81,7 @@ workflows:
       - cache_volumes
       - podman_volume_name
     with:
-        - cfg: $?ctx.hdci_cfg.scripts.{{ .ctx.current }},ctx.current
+        - cfg: '{{ if typeIs "string" .ctx.current }}{{ dig .ctx.current .nil .ctx.hdci_cfg.scripts | return }}{{ else }}{{ return .ctx.current }}{{ end }}'
         - cache_volumes: $?nil
     steps:
       - with:
@@ -114,24 +114,25 @@ workflows:
           - with:
               podman_system-: podman
               podman_volume_ignore_if_exists: true
-              podman_volume_name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
+              podman_volume_name: '{{ with .ctx.current }}hdci-cache-{{ replace "/" "_" $.ctx.git_repo }}-{{ replace "/" "_" .}}-{{ trunc 7 $.ctx.git_commit }}{{ end }}'
             if:
-              - $?ctx.podman_volume_name
+              - $?ctx.current
             unless_match:
               all_cache_volumes:
-                name: $?ctx.podman_volume_name
-            call_function: '{{ .ctx.podman_system }}.create_volume'
+                name: $ctx.podman_volume_name
+            # call_function: '{{ .ctx.podman_system }}.create_volume'; let it create automatically when mounting if not exists
+            description: create cache volume {{ .ctx.podman_volume_name }}
             export:
               all_cache_volumes+:
                 - name: $ctx.podman_volume_name
                   dest: $ctx.current
           - with:
-              name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
+              name: '{{ with .ctx.current }}hdci-cache-{{ replace "/" "_" $.ctx.git_repo }}-{{ replace "/" "_" .}}-{{ trunc 7 $.ctx.git_commit }}{{ end }}'
             if:
               - $?ctx.name
             export:
               cache_volumes+:
-                - name: $?ctx.name
+                - name: $ctx.name
                   dest: $ctx.current
             description: add to container cache volume
         description: ensure cache volumes exist
@@ -145,9 +146,9 @@ workflows:
               env: |
                 {{ $ret := dict }}{{ range $key, $value := .ctx.expanded.env }}
                 {{ if hasPrefix "hd-lookup:" $value }}
-                {{ _ = set $ret $key (trimPrefix "hd-lookup:" $value | printf "hd-lookup:{SCOPED}%s" ) }}
+                {{ $_ := set $ret $key (trimPrefix "hd-lookup:" $value | printf "hd-lookup:{SCOPED}%s" ) }}
                 {{ else }}
-                {{ _ = set $ret $key $value }}
+                {{ $_ := set $ret $key $value }}
                 {{ end }}
                 {{ end }}
                 {{ return $ret }}
@@ -157,6 +158,7 @@ workflows:
               entrypoint+: $?ctx.expanded.entrypoint
               command+: $?ctx.expanded.command
               volumes+: $?ctx.expanded.volumes
+              env: $?ctx.expanded.env_
             run+: "{{ with .ctx.expanded.run }}\n{{ . }}{{ end }}"
           - current_container:
               command+: '{{ with .ctx.run }}{{ list . | return }}{{ end }}'

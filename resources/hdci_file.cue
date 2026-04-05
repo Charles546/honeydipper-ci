@@ -4,7 +4,7 @@ import "list"
 
 #hdci_file: {
   use_templates?: [...string]
-  cache?: [string] : string
+  cache?: [...string]
   "triggers"?: list.MinItems(1) & [...#trigger]
   "triggers+"?: list.MinItems(1) & [...#trigger]
   "triggers*"?: list.MinItems(1) & [...#trigger]

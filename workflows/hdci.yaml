@@ -4,23 +4,31 @@ workflows:
     context: _hdci
     no_export:
       - hdci_cfg
+      - identity_created
     steps:
       - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
       - iterate: $?ctx.hdci_cfg.triggers
         iterate_as: current_trigger
         steps:
           - if_match: $ctx.current.conditions
-            iterate_parallel: $ctx.current.stages
-            iterate_as: stage_name
-            call_workflow: hdci/stage
-            with:
-              resume_key_prefix: 'hdci-{{ .labels.sessionID }}-{{ .ctx.git_repo }}-'
-            export:
-              matched_triggers+:
-                - $ctx.current_trigger
-            description: '{{ with .ctx.stage_name }}{{ . }}{{ end }} - stage'
+            on_failure: exit
+            steps:
+              - unless: [ "$?ctx.identity_created" ]
+                call_workflow: hdci/create_identity_{{ .ctx.hdci.identity_flavor }}
+                export:
+                  identity_created: "true"
+              - iterate_parallel: $ctx.current.stages
+                iterate_as: stage_name
+                on_failure: exit
+                call_workflow: hdci/stage
+                with:
+                  resume_key_prefix: 'hdci-{{ .labels.sessionID }}-{{ .ctx.git_repo }}-'
+                export:
+                  matched_triggers+:
+                    - $ctx.current_trigger
+                description: '{{ with .ctx.stage_name }}{{ . }}{{ end }} - stage'
         description: launch matching triggers
-        export:
+        export_on_success:
           _effectively_noop: '{{ empty .ctx.matched_triggers | return }}'
         no_export:
           - matched_triggers
