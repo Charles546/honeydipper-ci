@@ -75,7 +75,7 @@ workflows:
 
   hdci/job:
     with:
-      - predefined_job: $?ctx.hdci_cfg.jobs.{{ .ctx.current }}
+      - predefined_job: $?ctx.hdci_cfg.jobs.{{ if typeIs "string" .ctx.current }}{{ .ctx.current }}{{ else }}__something_not_exists{{ end }},ctx.job
       - job: $ctx.predefined_job,ctx.current
         job_name: '{{ with .ctx.predefined_job }}{{ $.ctx.current }}{{ else }}{{ $.ctx.current.job_name }}{{ end }}'
         hooks:
