@@ -4,6 +4,62 @@ rules:
       source:
         system: github_hdci
         trigger: hit
+      if_match:
+        - gh_event: installation
+          gh_action: created
+        - gh_event: installation_repositories
+          gh_action: added
+      export:
+        gh_event: $event.headers.X-Github-Event.0
+        gh_action: $?event.json.action
+        gh_installation_id: $?event.json.installation.id
+        gh_installation_account: $?event.json.installation.account.login
+        gh_installation_account_type: $?event.json.installation.account.type
+        gh_sender: $?event.json.sender.login
+        _meta_event: >-
+          {{ index .event.headers "X-Github-Event" 0 }}
+          installation {{ default "" .event.json.installation.id }}
+          {{ default "" .event.json.installation.account.login }}
+          {{ with .event.json.action }}{{ . }}{{ end }}
+    do:
+      contexts:
+        - mute
+      if:
+        - '{{ .ctx.gh_installation_account }}'
+      call_workflow: hdci/gh_app_installation_onboarding
+      description: Onboard GitHub App installation into hd-home auth allowlists
+
+  - when:
+      source:
+        system: github_hdci
+        trigger: hit
+      if_match:
+        gh_event: installation
+        gh_action: deleted
+      export:
+        gh_event: $event.headers.X-Github-Event.0
+        gh_action: $?event.json.action
+        gh_installation_id: $?event.json.installation.id
+        gh_installation_account: $?event.json.installation.account.login
+        gh_installation_account_type: $?event.json.installation.account.type
+        gh_sender: $?event.json.sender.login
+        _meta_event: >-
+          {{ index .event.headers "X-Github-Event" 0 }}
+          installation {{ default "" .event.json.installation.id }}
+          {{ default "" .event.json.installation.account.login }}
+          {{ with .event.json.action }}{{ . }}{{ end }}
+    do:
+      contexts:
+        - mute
+      if:
+        - '{{ .ctx.gh_installation_account }}'
+      call_workflow: hdci/gh_app_installation_offboarding
+      description: Offboard GitHub App installation from hd-home auth allowlists
+
+  - when:
+      source:
+        system: github_hdci
+        trigger: hit
       export:
         git_repo: $?event.json.repository.full_name
         git_ref: $?event.json.ref

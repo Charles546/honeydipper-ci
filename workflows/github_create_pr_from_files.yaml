@@ -1,0 +1,95 @@
+---
+workflows:
+  hdci/github_create_pr_from_files:
+    description: >-
+      Generic workflow to create a pull request with multiple file changes.
+      Creates blobs and tree for all files, then commit, branch, and PR.
+    with:
+      github_system: $ctx.gh_system
+      git_repo: required
+      git_ref: required
+      branch_name: required
+      files: required
+      commit_message: required
+      pr_title: required
+      pr_body: required
+    no_export:
+      - base_commit_sha
+      - base_tree_sha
+      - blob_sha
+    steps:
+      - call_function: '{{ .ctx.github_system }}.getCommit'
+        with:
+          git_repo: $ctx.git_repo
+          git_ref: $ctx.git_ref
+        export:
+          base_commit_sha: $ctx.git_commit_full
+          base_tree_sha: $ctx.git_commit_info.commit.tree.sha
+      - call_function: '{{ .ctx.github_system }}.api'
+        with:
+          resource_path: 'repos/{{ .ctx.git_repo }}/git/refs'
+          method: POST
+          content:
+            ref: 'refs/heads/{{ .ctx.branch_name }}'
+            sha: $ctx.base_commit_sha
+      - iterate: $ctx.files
+        with:
+          file_delete: '{{ or (eq (lower (default "" .ctx.current.action)) "delete") (eq (toString .ctx.current.delete) "true") | return }}'
+        steps:
+          - if:
+              - $ctx.file_delete
+            export:
+              tree_entries+:
+                - path: '{{ trimPrefix "/" .ctx.current.path }}'
+                  sha: null
+          - unless:
+              - $ctx.file_delete
+            steps:
+              - call_function: '{{ .ctx.github_system }}.api'
+                with:
+                  resource_path: 'repos/{{ .ctx.git_repo }}/git/blobs'
+                  method: POST
+                  content:
+                    content: $ctx.current.content,""
+                    encoding: $ctx.current.encoding,"utf-8"
+                export:
+                  blob_sha: $data.json.sha
+              - export:
+                  tree_entries+:
+                    - path: '{{ trimPrefix "/" .ctx.current.path }}'
+                      mode: $ctx.current.mode,"100644"
+                      type: blob
+                      sha: $ctx.blob_sha
+      - call_function: '{{ .ctx.github_system }}.api'
+        with:
+          resource_path: 'repos/{{ .ctx.git_repo }}/git/trees'
+          method: POST
+          content:
+            base_tree: $ctx.base_tree_sha
+            tree: $ctx.tree_entries
+        export:
+          tree_sha: $data.json.sha
+      - call_function: '{{ .ctx.github_system }}.api'
+        with:
+          resource_path: 'repos/{{ .ctx.git_repo }}/git/commits'
+          method: POST
+          content:
+            message: $ctx.commit_message
+            tree: $ctx.tree_sha
+            parents:
+              - $ctx.base_commit_sha
+        export:
+          commit_sha: $data.json.sha
+      - call_function: '{{ .ctx.github_system }}.updateRef'
+        with:
+          git_repo: $ctx.git_repo
+          git_ref: 'refs/heads/{{ .ctx.branch_name }}'
+          git_commit_full: $ctx.commit_sha
+      - call_function: '{{ .ctx.github_system }}.createPR'
+        with:
+          git_repo: $ctx.git_repo
+          PR_content:
+            title: $ctx.pr_title
+            head: $ctx.branch_name
+            base: '{{ trimPrefix "refs/heads/" .ctx.git_ref }}'
+            body: $ctx.pr_body
