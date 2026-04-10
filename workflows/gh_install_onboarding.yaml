@@ -8,7 +8,7 @@ workflows:
       onboarding_target_repo: $ctx.hdci.gh_install_onboarding.target_repo
       onboarding_base_branch: $ctx.hdci.gh_install_onboarding.base_branch
       onboarding_layer_dir: $ctx.hdci.gh_install_onboarding.layer_dir
-      onboarding_gh_system: $ctx.hdci.gh_system_pat,ctx.gh_system
+      onboarding_gh_system: $ctx.hdci.gh_system_pat
     steps:
       - export:
           onboarding_account: '{{ lower (trim (default "" .ctx.gh_installation_account)) }}'
@@ -36,6 +36,12 @@ workflows:
               auth-github:
                 {{ if eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" }}allowed_orgs{{ else }}allowed_users{{ end }}:
                   - {{ lower (trim (default "" .ctx.gh_installation_account)) }}
+            contexts:
+              _hdci:
+                "*":
+                  hdci:
+                    gh_installation_ids:
+                      '{{ lower (trim (default "" .ctx.gh_installation_account)) }}': '{{ default "" .ctx.gh_installation_id }}'
           onboarding_pr_body: |-
             This PR was created automatically after a GitHub App installation event.
 
@@ -49,22 +55,11 @@ workflows:
 
             Proposed change:
             - add {{ lower (trim (default "" .ctx.gh_installation_account)) }} to {{ if eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" }}drivers.auth-github.allowed_orgs{{ else }}drivers.auth-github.allowed_users{{ end }} via {{ .ctx.onboarding_file }}
+            - set contexts._hdci."*".hdci.gh_installation_ids.{{ lower (trim (default "" .ctx.gh_installation_account)) }}={{ .ctx.gh_installation_id }} via {{ .ctx.onboarding_file }}
 
             Notes:
             - target repo: {{ .ctx.onboarding_target_repo }}
             - base branch: {{ .ctx.onboarding_base_branch }}
-      - call_workflow: github_getContent
-        with:
-          github_system: $ctx.onboarding_gh_system
-          git_repo: $ctx.onboarding_target_repo
-          git_ref: refs/heads/{{ .ctx.onboarding_base_branch }}
-          path: drivers.yaml
-        export:
-          onboarding_in_drivers: >-
-            {{ $account := .ctx.onboarding_account }}
-            {{ if or (contains .ctx.file_content (printf "- %s" $account))
-                     (contains .ctx.file_content (printf "- '%s'" $account))
-                     (contains .ctx.file_content (printf "- \"%s\"" $account)) }}true{{ else }}false{{ end }}
       - on_error: continue
         call_function: '{{ .ctx.onboarding_gh_system }}.api'
         with:
@@ -73,10 +68,8 @@ workflows:
           onboarding_file_exists: true
         export_on_error:
           onboarding_file_exists: false
-      - export:
-          onboarding_noop: '{{ or (eq (toString .ctx.onboarding_in_drivers) "true") (eq (toString .ctx.onboarding_file_exists) "true") | return }}'
       - unless:
-          - $ctx.onboarding_noop
+          - '{{ .ctx.onboarding_file_exists }}'
         steps:
           - call_workflow: hdci/github_create_pr_from_files
             with:
@@ -96,7 +89,7 @@ workflows:
       onboarding_target_repo: $ctx.hdci.gh_install_onboarding.target_repo
       onboarding_base_branch: $ctx.hdci.gh_install_onboarding.base_branch
       onboarding_layer_dir: $ctx.hdci.gh_install_onboarding.layer_dir
-      onboarding_gh_system: $ctx.hdci.gh_system_pat,ctx.gh_system
+      onboarding_gh_system: $ctx.hdci.gh_system_pat
     steps:
       - export:
           onboarding_account: '{{ lower (trim (default "" .ctx.gh_installation_account)) }}'
@@ -130,7 +123,7 @@ workflows:
             - sender: {{ default "" .ctx.gh_sender }}
 
             Proposed change:
-            - remove generated allowlist file {{ .ctx.onboarding_file }}
+            - remove generated file {{ .ctx.onboarding_file }}
 
             Notes:
             - target repo: {{ .ctx.onboarding_target_repo }}
@@ -143,8 +136,8 @@ workflows:
           onboarding_file_exists: true
         export_on_error:
           onboarding_file_exists: false
-      - unless:
-          - '{{ eq (toString .ctx.onboarding_file_exists) "false" | return }}'
+      - if:
+          - '{{ .ctx.onboarding_file_exists }}'
         steps:
           - call_workflow: hdci/github_create_pr_from_files
             with:
