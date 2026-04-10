@@ -13,6 +13,7 @@ contexts:
         identity_flavor-: vault
         notify_in_chat: true
         gh_system_pat: github_pat
+        ui_url: http://127.0.0.1:5173 # placeholder for ui url, can be used in workflows to construct links to ui
         # slack_notify:
         #   - "#test"
         notify_steps: true

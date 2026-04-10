@@ -65,6 +65,7 @@ workflows:
       status:
         state: pending
         description: $ctx.stage.gh_status_message.pending,"pipeline is running..."
+        target_url: '{{ with .ctx._log_stream }}{{ $.ctx.hdci.ui_url }}/logs/{{ .provider }}/{{ .pod_id }}?gh={{ urlquery .gh_slug }}&stream_token={{ urlquery .stream_token }}{{ end }}'
 
   hdci/report_stage_result_gh:
     call_function: '{{ .ctx.gh_system }}.createStatus'
@@ -75,3 +76,4 @@ workflows:
       status:
         state: $ctx.job_status,labels.status
         description: $ctx.stage.gh_status_message.{{ coalesce .ctx.job_status .labels.status }},"pipeline is completed with status {{ coalesce .ctx.job_status .labels.status }}."
+        target_url: '{{ with .ctx._log_stream }}{{ $.ctx.hdci.ui_url }}/logs/{{ .provider }}/{{ .pod_id }}?gh={{ urlquery .gh_slug }}&stream_token={{ urlquery .stream_token }}{{ end }}'
