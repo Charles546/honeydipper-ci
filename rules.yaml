@@ -5,25 +5,28 @@ rules:
         system: github_hdci
         trigger: hit
       if_match:
-        - gh_event: installation
-          gh_action: created
-        - gh_event: installation_repositories
-          gh_action: added
+        headers:
+          X-Github-Event:
+            - installation
+        json:
+          action:
+            - created
       export:
         gh_event: $event.headers.X-Github-Event.0
         gh_action: $?event.json.action
-        gh_installation_id: $?event.json.installation.id
+        gh_installation_id: '{{ with dig "installation" "id" "" .event.json }}{{ int64 . }}{{ end }}'
         gh_installation_account: $?event.json.installation.account.login
         gh_installation_account_type: $?event.json.installation.account.type
         gh_sender: $?event.json.sender.login
         _meta_event: >-
           {{ index .event.headers "X-Github-Event" 0 }}
-          installation {{ default "" .event.json.installation.id }}
+          {{ with dig "installation" "id" "" .event.json }}{{ int64 . | toString }}{{ end }}
           {{ default "" .event.json.installation.account.login }}
           {{ with .event.json.action }}{{ . }}{{ end }}
     do:
       contexts:
         - mute
+        - _hdci
       if:
         - '{{ .ctx.gh_installation_account }}'
       call_workflow: hdci/gh_app_installation_onboarding
@@ -34,23 +37,28 @@ rules:
         system: github_hdci
         trigger: hit
       if_match:
-        gh_event: installation
-        gh_action: deleted
+        headers:
+          X-Github-Event:
+            - installation
+        json:
+          action:
+            - deleted
       export:
         gh_event: $event.headers.X-Github-Event.0
         gh_action: $?event.json.action
-        gh_installation_id: $?event.json.installation.id
+        gh_installation_id: '{{ with dig "installation" "id" "" .event.json }}{{ int64 . }}{{ end }}'
         gh_installation_account: $?event.json.installation.account.login
         gh_installation_account_type: $?event.json.installation.account.type
         gh_sender: $?event.json.sender.login
         _meta_event: >-
           {{ index .event.headers "X-Github-Event" 0 }}
-          installation {{ default "" .event.json.installation.id }}
+          {{ with dig "installation" "id" "" .event.json }}{{ int64 . | toString }}{{ end }}
           {{ default "" .event.json.installation.account.login }}
           {{ with .event.json.action }}{{ . }}{{ end }}
     do:
       contexts:
         - mute
+        - _hdci
       if:
         - '{{ .ctx.gh_installation_account }}'
       call_workflow: hdci/gh_app_installation_offboarding
@@ -73,15 +81,15 @@ rules:
         _meta_event: >-
           {{ index .event.headers "X-Github-Event" 0 }}
           {{ .event.json.repository.full_name }}
-          {{ coalesce .event.json.head_commit.id .event.json.commit.sha "" | trunc 7 | coalesce .event.json.ref }}
+          {{ with coalesce (dig "head_commit" "id" "" .event.json) (dig "commit" "sha" "" .event.json) }}{{ . | trunc 7 | coalesce $.event.json.ref }}{{ end }}
           {{ with coalesce .event.json.action .event.json.state }}{{ . }}{{ end }}
           {{ with .event.json.number }}#{{ . }}{{ end }}
           {{ with .event.json.context }}({{ . }}){{ end }}
     do:
       contexts:
         - mute
-      if:
-        - '{{ .ctx.git_repo }}'
+      unless:
+        - '{{ empty .ctx.git_repo }}'
       unless_match:
         - gh_event: status
           gh_status_context: hdci/cfg

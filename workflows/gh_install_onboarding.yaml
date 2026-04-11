@@ -9,6 +9,7 @@ workflows:
       onboarding_base_branch: $ctx.hdci.gh_install_onboarding.base_branch
       onboarding_layer_dir: $ctx.hdci.gh_install_onboarding.layer_dir
       onboarding_gh_system: $ctx.hdci.gh_system_pat
+    on_error: continue
     steps:
       - export:
           onboarding_account: '{{ lower (trim (default "" .ctx.gh_installation_account)) }}'
@@ -16,12 +17,12 @@ workflows:
           onboarding_kind: '{{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}'
           onboarding_branch: >-
             hdci/onboard-auth-{{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
-            {{ replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}-
-            {{ default "0" .ctx.gh_installation_id }}
+            {{- replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}-
+            {{- default "0" .ctx.gh_installation_id }}
           onboarding_file: >-
             {{ .ctx.onboarding_layer_dir }}/
-            {{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
-            {{ replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}.yaml
+            {{- eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
+            {{- replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}.yaml
           onboarding_commit_message: >-
             chore(auth-github): onboard
             {{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}
@@ -60,29 +61,27 @@ workflows:
             Notes:
             - target repo: {{ .ctx.onboarding_target_repo }}
             - base branch: {{ .ctx.onboarding_base_branch }}
-      - on_error: continue
-        call_function: '{{ .ctx.onboarding_gh_system }}.api'
+      - call_function: '{{ .ctx.onboarding_gh_system }}.api'
         with:
-          resource_path: 'repos/{{ .ctx.onboarding_target_repo }}/contents/{{ .ctx.onboarding_file }}?ref={{ .ctx.onboarding_base_branch }}'
+          resource_path: 'repos/{{ .ctx.onboarding_target_repo }}/contents/{{ .ctx.onboarding_file }}?ref=refs/heads/{{ .ctx.onboarding_base_branch }}'
         export_on_success:
           onboarding_file_exists: true
         export_on_error:
           onboarding_file_exists: false
       - unless:
           - '{{ .ctx.onboarding_file_exists }}'
-        steps:
-          - call_workflow: hdci/github_create_pr_from_files
-            with:
-              github_system: $ctx.onboarding_gh_system
-              git_repo: $ctx.onboarding_target_repo
-              git_ref: refs/heads/{{ .ctx.onboarding_base_branch }}
-              branch_name: $ctx.onboarding_branch
-              files:
-                - path: $ctx.onboarding_file
-                  content: $ctx.onboarding_file_content
-              commit_message: $ctx.onboarding_commit_message
-              pr_title: $ctx.onboarding_pr_title
-              pr_body: $ctx.onboarding_pr_body
+        call_workflow: hdci/github_create_pr_from_files
+        with:
+          github_system: $ctx.onboarding_gh_system
+          git_repo: $ctx.onboarding_target_repo
+          git_ref: refs/heads/{{ .ctx.onboarding_base_branch }}
+          branch_name: $ctx.onboarding_branch
+          files:
+            - path: $ctx.onboarding_file
+              content: $ctx.onboarding_file_content
+          commit_message: $ctx.onboarding_commit_message
+          pr_title: $ctx.onboarding_pr_title
+          pr_body: $ctx.onboarding_pr_body
 
   hdci/gh_app_installation_offboarding:
     with:
@@ -96,13 +95,13 @@ workflows:
           onboarding_account_type: '{{ lower (trim (default "" .ctx.gh_installation_account_type)) }}'
           onboarding_kind: '{{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}'
           onboarding_branch: >-
-            hdci/offboard-auth-{{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
-            {{ replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}-
-            {{ default "0" .ctx.gh_installation_id }}
+            hdci/offboard-{{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
+            {{- replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}-
+            {{- default "0" .ctx.gh_installation_id }}
           onboarding_file: >-
             {{ .ctx.onboarding_layer_dir }}/
-            {{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
-            {{ replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}.yaml
+            {{- eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}-
+            {{- replace "/" "-" (replace "." "-" (replace "_" "-" (lower (trim (default "" .ctx.gh_installation_account))))) }}.yaml
           onboarding_commit_message: >-
             chore(auth-github): offboard
             {{ eq (lower (trim (default "" .ctx.gh_installation_account_type))) "organization" | ternary "org" "user" }}
@@ -128,26 +127,18 @@ workflows:
             Notes:
             - target repo: {{ .ctx.onboarding_target_repo }}
             - base branch: {{ .ctx.onboarding_base_branch }}
-      - on_error: continue
-        call_function: '{{ .ctx.onboarding_gh_system }}.api'
+      - call_function: '{{ .ctx.onboarding_gh_system }}.api'
         with:
-          resource_path: 'repos/{{ .ctx.onboarding_target_repo }}/contents/{{ .ctx.onboarding_file }}?ref={{ .ctx.onboarding_base_branch }}'
-        export_on_success:
-          onboarding_file_exists: true
-        export_on_error:
-          onboarding_file_exists: false
-      - if:
-          - '{{ .ctx.onboarding_file_exists }}'
-        steps:
-          - call_workflow: hdci/github_create_pr_from_files
-            with:
-              github_system: $ctx.onboarding_gh_system
-              git_repo: $ctx.onboarding_target_repo
-              git_ref: refs/heads/{{ .ctx.onboarding_base_branch }}
-              branch_name: $ctx.onboarding_branch
-              files:
-                - path: $ctx.onboarding_file
-                  action: delete
-              commit_message: $ctx.onboarding_commit_message
-              pr_title: $ctx.onboarding_pr_title
-              pr_body: $ctx.onboarding_pr_body
+          resource_path: 'repos/{{ .ctx.onboarding_target_repo }}/contents/{{ .ctx.onboarding_file }}?ref=refs/heads/{{ .ctx.onboarding_base_branch }}'
+      - call_workflow: hdci/github_create_pr_from_files
+        with:
+          github_system: $ctx.onboarding_gh_system
+          git_repo: $ctx.onboarding_target_repo
+          git_ref: refs/heads/{{ .ctx.onboarding_base_branch }}
+          branch_name: $ctx.onboarding_branch
+          files:
+            - path: $ctx.onboarding_file
+              action: delete
+          commit_message: $ctx.onboarding_commit_message
+          pr_title: $ctx.onboarding_pr_title
+          pr_body: $ctx.onboarding_pr_body

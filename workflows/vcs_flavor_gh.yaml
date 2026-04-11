@@ -15,7 +15,7 @@ workflows:
           path: '.hdci.yml'
           github_system: $ctx.gh_system
           tokenSourceParams:
-            installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo }},ctx.gh_installation_id
+            installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo | lower }},ctx.gh_installation_id
         export:
           preliminary_hdci_cfg: :yaml_safe:{{ .ctx.file_content }}
           schema_error: '{{ with (cue_validate_error .ctx.hdci_file_schema ".hdci.yml" .ctx.file_content) }}{{ fail . }}{{ end }}'
@@ -50,7 +50,7 @@ workflows:
     call_function: '{{ .ctx.gh_system }}.createStatus'
     with:
       tokenSourceParams:
-        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo }},ctx.gh_installation_id
+        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo | lower }},ctx.gh_installation_id
       context: hdci/cfg
       status:
         state: '{{ eq .labels.status "success" | ternary "success" "error" }}'
@@ -60,7 +60,7 @@ workflows:
     call_function: '{{ .ctx.gh_system }}.createStatus'
     with:
       tokenSourceParams:
-        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo }},ctx.gh_installation_id
+        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo | lower }},ctx.gh_installation_id
       context: hdci/{{ .ctx.stage_name }}
       status:
         state: pending
@@ -71,7 +71,7 @@ workflows:
     call_function: '{{ .ctx.gh_system }}.createStatus'
     with:
       tokenSourceParams:
-        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo }},ctx.gh_installation_id
+        installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo | lower }},ctx.gh_installation_id
       context: hdci/{{ .ctx.stage_name }}
       status:
         state: $ctx.job_status,labels.status

@@ -105,7 +105,7 @@ workflows:
         with:
           github_system: $?ctx.gh_system
           tokenSourceParams:
-            installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo }},ctx.gh_installation_id
+            installation_id: $ctx.hdci.gh_installation_ids.{{ dir .ctx.git_repo | lower }},ctx.gh_installation_id
           path: $?ctx.expanded.script_file
         export_on_success:
           expanded:

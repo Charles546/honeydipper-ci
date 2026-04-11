@@ -23,7 +23,7 @@ contexts:
             sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-0235747-podman
             env:
               SECRET_PREFIX_1_REPO: 'secrets/data/hdci/gh/{{ .ctx.git_repo }}#'
-              SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ base .ctx.git_repo }}/_org#'
+              SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ with .ctx.git_repo }}{{ dir . }}{{ end }}/_org#'
               HD_SECURE_LOADER: '/local/honeydipper/hd-driver-vault'
         # worker:
         #   gh:

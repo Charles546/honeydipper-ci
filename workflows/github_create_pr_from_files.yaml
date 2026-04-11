@@ -4,15 +4,15 @@ workflows:
     description: >-
       Generic workflow to create a pull request with multiple file changes.
       Creates blobs and tree for all files, then commit, branch, and PR.
-    with:
-      github_system: $ctx.gh_system
-      git_repo: required
-      git_ref: required
-      branch_name: required
-      files: required
-      commit_message: required
-      pr_title: required
-      pr_body: required
+    # with:
+    #   github_system: required
+    #   git_repo: required
+    #   git_ref: required
+    #   branch_name: required
+    #   files: required
+    #   commit_message: required
+    #   pr_title: required
+    #   pr_body: required
     no_export:
       - base_commit_sha
       - base_tree_sha
@@ -34,57 +34,73 @@ workflows:
             sha: $ctx.base_commit_sha
       - iterate: $ctx.files
         with:
-          file_delete: '{{ or (eq (lower (default "" .ctx.current.action)) "delete") (eq (toString .ctx.current.delete) "true") | return }}'
+          resource_path: 'repos/{{ .ctx.git_repo }}/git/blobs'
         steps:
-          - if:
-              - $ctx.file_delete
+          - unless_match:
+              current:
+                - action: delete
+                - delete: "true"
+            function:
+              target:
+                system: $ctx.github_system
+                function: api
+              parameters:
+                method: POST
+                content:
+                  content: $ctx.current.content,""
+                  encoding: $ctx.current.encoding,"utf-8"
             export:
               tree_entries+:
                 - path: '{{ trimPrefix "/" .ctx.current.path }}'
-                  sha: null
-          - unless:
-              - $ctx.file_delete
-            steps:
-              - call_function: '{{ .ctx.github_system }}.api'
-                with:
-                  resource_path: 'repos/{{ .ctx.git_repo }}/git/blobs'
-                  method: POST
-                  content:
-                    content: $ctx.current.content,""
-                    encoding: $ctx.current.encoding,"utf-8"
-                export:
-                  blob_sha: $data.json.sha
-              - export:
-                  tree_entries+:
-                    - path: '{{ trimPrefix "/" .ctx.current.path }}'
-                      mode: $ctx.current.mode,"100644"
-                      type: blob
-                      sha: $ctx.blob_sha
-      - call_function: '{{ .ctx.github_system }}.api'
-        with:
-          resource_path: 'repos/{{ .ctx.git_repo }}/git/trees'
-          method: POST
-          content:
-            base_tree: $ctx.base_tree_sha
-            tree: $ctx.tree_entries
+                  mode: $ctx.current.mode,"100644"
+                  type: blob
+                  sha: $data.json.sha
+            else:
+              export:
+                tree_entries+:
+                  - path: '{{ trimPrefix "/" .ctx.current.path }}'
+                    sha: $?nil
+                    mode: "100644"
+      - with:
+          resource_path: 'repos/{{ .ctx.git_repo  }}/git/trees'
+        function:
+          target:
+            system: $ctx.github_system
+            function: api
+          parameters:
+            method: POST
+            content:
+              base_tree: $ctx.base_tree_sha
+              tree: $ctx.tree_entries
         export:
           tree_sha: $data.json.sha
-      - call_function: '{{ .ctx.github_system }}.api'
-        with:
+      - with:
           resource_path: 'repos/{{ .ctx.git_repo }}/git/commits'
-          method: POST
-          content:
-            message: $ctx.commit_message
-            tree: $ctx.tree_sha
-            parents:
+        function:
+          target:
+            system: $ctx.github_system
+            function: api
+          parameters:
+            method: POST
+            content:
+              message: $ctx.commit_message
+              tree: $ctx.tree_sha
+              parents:
               - $ctx.base_commit_sha
         export:
           commit_sha: $data.json.sha
-      - call_function: '{{ .ctx.github_system }}.updateRef'
-        with:
-          git_repo: $ctx.git_repo
-          git_ref: 'refs/heads/{{ .ctx.branch_name }}'
-          git_commit_full: $ctx.commit_sha
+      - with:
+          resource_path: 'repos/{{ .ctx.git_repo }}/git/refs'
+        function:
+          target:
+            system: $ctx.github_system
+            function: api
+          parameters:
+            method: POST
+            content:
+              sha: $ctx.commit_sha
+              force: true
+              ref: 'refs/heads/{{ .ctx.branch_name }}'
       - call_function: '{{ .ctx.github_system }}.createPR'
         with:
           git_repo: $ctx.git_repo
