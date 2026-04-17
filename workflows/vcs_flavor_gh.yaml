@@ -42,8 +42,6 @@ workflows:
               - file_content
           - export:
               hdci_cfg: :yaml_safe:{{ .ctx.root_hdci_cfg }}
-        export:
-          hdci_cfg: $ctx.hdci_builtin_cfg
         description: merging hdci config templates
 
   hdci/report_yml_error_gh:

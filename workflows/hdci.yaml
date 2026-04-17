@@ -5,8 +5,23 @@ workflows:
     no_export:
       - hdci_cfg
       - identity_created
+      - worker_name
+      - worker_profile
+      - identity_flavor
     steps:
       - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
+      - with:
+          - worker_name: $ctx.merged_hdci_cfg.settings.worker,ctx.hdci.worker_default,"podman_default"
+          - worker_profile: $ctx.hdci.workers.{{ .ctx.worker_name }},ctx.hdci.workers.{{ .ctx.hdci.worker_default }},ctx.hdci.workers.podman_default
+        export:
+          worker_name: $ctx.worker_name
+          worker_profile: $ctx.worker_profile
+          identity_flavor: $ctx.worker_profile.identity_flavor,ctx.hdci.identity_flavor,"vault"
+        description: determining worker profile
+      - context: _hdci_builtin_cfg
+        export:
+          hdci_cfg: $ctx.hdci_builtin_cfg
+        description: loading builtin config
       - iterate: $?ctx.hdci_cfg.triggers
         iterate_as: current_trigger
         steps:
@@ -14,7 +29,7 @@ workflows:
             on_failure: exit
             steps:
               - unless: [ "$?ctx.identity_created" ]
-                call_workflow: hdci/create_identity_{{ .ctx.hdci.identity_flavor }}
+                call_workflow: hdci/create_identity_{{ .ctx.identity_flavor }}
                 export:
                   identity_created: "true"
               - iterate_parallel: $ctx.current.stages
@@ -37,7 +52,6 @@ workflows:
     with:
       - alone: '{{ hasKey .ctx "thread_number" | not }}'
       - stage: $ctx.hdci_cfg.stages.{{ .ctx.stage_name }}
-      - script_flavor: $ctx.stage.settings.script_flavor,ctx.hdci.script_flavor
       - required_stages: $?ctx.stage.requires
         hooks:
           on_session:
@@ -65,22 +79,17 @@ workflows:
                       reason: Timeout waiting for required stages
                 export:
                   required_stages: '{{ without .ctx.required_stages .data.completed_stage | return }}'
-                export_on_error:
-                  stage_status: $labels.status
-                  stage_error: $labels.reason
             description: waiting for required stages
           - iterate: $ctx.stage.jobs
             description: iterating through stage steps
-            steps:
-              - unless:
-                  - $?ctx.job_error
-                call_workflow: hdci/job
+            call_workflow: hdci/job
 
   hdci/job:
     with:
       - predefined_job: $?ctx.hdci_cfg.jobs.{{ if typeIs "string" .ctx.current }}{{ .ctx.current }}{{ else }}__something_not_exists{{ end }},ctx.job
       - job: $ctx.predefined_job,ctx.current
         job_name: '{{ with .ctx.predefined_job }}{{ $.ctx.current }}{{ else }}{{ $.ctx.current.job_name }}{{ end }}'
+        job_headline: '{{ with .ctx.job.workflow }}Workflow: {{ . }}{{ else }}Job: {{ .ctx.job_name }}{{ end }}'
         hooks:
           on_session::
             - hdci/announce_job
@@ -94,12 +103,10 @@ workflows:
       job_status: $?ctx.workflow_status,labels.status
       job_error: $?ctx.workflow_error,labels.reason
       job_output: $?ctx.workflow_output
-      job_headline: 'Workflow: {{ .ctx.job.workflow }}'
     export_on_error:
       job_status: $?ctx.workflow_status,labels.status
       job_error: $?ctx.workflow_error,labels.reason
       job_output: $?ctx.workflow_output
-      job_headline: 'Workflow: {{ .ctx.job.workflow }}'
     else:
       description: route to script
       call_workflow: hdci/run_script
@@ -107,12 +114,10 @@ workflows:
         job_status: $?ctx.script_status,labels.status
         job_error: $?ctx.script_error,labels.reason
         job_output: $?ctx.script_log
-        job_headline: 'Job: {{ .ctx.job_name }}'
       export_on_error:
         job_status: $?ctx.script_status,labels.status
         job_error: $?ctx.script_error,labels.reason
         job_output: $?ctx.script_log
-        job_headline: 'Job: {{ .ctx.job_name }}'
 
   hdci/run_script:
     with:

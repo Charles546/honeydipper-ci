@@ -13,6 +13,7 @@ import "list"
   scripts?: [string]: #predefined_script_step_def
   executors?: [string]: #script_executor
   settings?: {
+    worker?: string
     ...
   }
 
@@ -32,6 +33,7 @@ import "list"
   
   #stage: {
     settings?: {
+      worker?: string
       ...
     }
     jobs?: list.MinItems(1) & [...#job_ref]

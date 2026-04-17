@@ -7,13 +7,12 @@ workflows:
   #   - hdci_builtin_cfg (_hdci_schema)
   #   - hdci_worker_auth_folder (optional, defaults to "approle")
   hdci/create_identity_vault:
-    call_workflow: hdci/run_script_{{ .ctx.hdci.script_flavor }}
+    call_workflow: hdci/run_script_{{ .ctx.worker_profile.script_flavor }}
     context: _hdci_schema
     no_export:
       - "*"
     with:
-      - hdci_cfg: $ctx.hdci_builtin_cfg
-        podman_volume_name: $ctx.per_repo_identity_volume_name
+      - podman_volume_name: $ctx.per_repo_identity_volume_name
       - script:
           skip_steps: "*"
           steps:
@@ -58,4 +57,4 @@ workflows:
                   echo "$ACCESSOR" > /local/honeydipper/accessor.txt
                 fi
               skip_executors: "*"
-              volumes_**: $ctx.hdci.worker.identity.volumes
+              volumes_**: $ctx.worker_profile.identity.setup.volumes

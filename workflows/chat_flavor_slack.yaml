@@ -46,7 +46,7 @@ workflows:
           - color: $ctx.chat_colors.{{ coalesce .ctx.job_status .labels.status }},""
             text: |
               {{ .ctx.job_headline }}: {{ coalesce .ctx.job_status .labels.status }}
-              {{- with .ctx.job_error }}
+              {{- with default .labels.status .ctx.job_error }}
               Error:
               ```
               {{ . }}
@@ -87,12 +87,11 @@ workflows:
           - color: $ctx.chat_colors.{{ coalesce .ctx.job_status .labels.status }},""
             text: |
               *Stage: {{ .ctx.stage_name }} {{ coalesce .ctx.job_status .labels.status }}*
-              {{- with .ctx.job_status }}{{ else }}
               {{- with .labels.reason }}
               reason:
               ```
               {{ . }}
               ```
-              {{- end }}{{ end -}}
+              {{ end -}}
     export:
       attachments*: $ctx.attachments

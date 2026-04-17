@@ -7,30 +7,6 @@ workflows:
     with:
       pod_cache_volumes: $?nil
     steps:
-      - iterate: $?ctx.script.cache
-        no_export:
-          - podman_volume_name
-        steps:
-          - with:
-              podman_system-: podman
-              podman_volume_ignore_if_exists: true
-              podman_volume_name: '{{ dig .ctx.current "" .ctx.hdci_cfg.cache }}'
-            if:
-              - $?ctx.podman_volume_name
-            call_function: '{{ .ctx.podman_system }}.create_volume'
-            export_on_success:
-              pod_cache_volumes+:
-                - name: $ctx.podman_volume_name
-                  dest: $ctx.current
-        description: ensure cache volumes exist for the pod
-        export_on_success:
-          all_cache_volumes: $?ctx.pod_cache_volumes
-        export:
-          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
-          script_error: $?ctx.podman_error,labels.reason
-        export_on_error:
-          script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
-          script_error: $?ctx.podman_error,labels.reason
       - with:
           - script_steps: |
               {{ $st := list }}{{ if (toString .ctx.script.skip_steps | eq "*" | not) }}
@@ -65,12 +41,12 @@ workflows:
 
   hdci/prepare_stage_storage_podman:
     with:
-      podman_system-: podman
+      podman_system-: $ctx.worker_profile.podman_system,"podman"
     call_function: '{{ .ctx.podman_system }}.create_volume'
 
   hdci/cleanup_stage_storage_podman:
     with:
-      podman_system-: podman
+      podman_system-: $ctx.worker_profile.podman_system,"podman"
     if_match:
       step_status: success
     call_function: '{{ .ctx.podman_system }}.delete_volume'
@@ -114,7 +90,7 @@ workflows:
       - iterate: $?ctx.expanded.cache
         steps:
           - with:
-              podman_system-: podman
+              podman_system-: $ctx.worker_profile.podman_system,"podman"
               podman_volume_ignore_if_exists: true
               podman_volume_name: '{{ with .ctx.current }}hdci-cache-{{ replace "/" "_" $.ctx.git_repo }}-{{ replace "/" "_" .}}-{{ trunc 7 $.ctx.git_commit }}{{ end }}'
             if:

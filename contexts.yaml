@@ -9,8 +9,19 @@ contexts:
         vcs_flavor-: gh
         chat_flavor-: slack
         chat_system-: slack_bot
-        script_flavor-: podman
-        identity_flavor-: vault
+        worker_default-: podman_default
+        workers:
+          podman_default:
+            script_flavor: podman
+            identity_flavor: vault
+            podman_system: podman
+          kubernetes_default:
+            script_flavor: kubernetes
+            identity_flavor: kubernetes
+            k8s_system: kubernetes
+            k8s_storage_size: 5Gi
+            k8s_daemon_service_account: hdci-daemon
+            k8s_vault_auth_path: kubernetes
         notify_in_chat: true
         gh_system_pat: github_pat
         ui_url: http://127.0.0.1:5173 # placeholder for ui url, can be used in workflows to construct links to ui
@@ -44,9 +55,15 @@ contexts:
         #         dest: /var/hd-secrets/identity
     
     hdci/run_script_podman: &podman_system
-      podman_system: $ctx.stage.settings.podman_system,ctx.merged_hdci_cfg.settings.podman_system,"podman"
+      podman_system: $ctx.worker_profile.podman_system,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.podman_system,"podman"
     hdci/prepare_stage_volume_podman: *podman_system
     hdci/cleanup_stage_volume_podman: *podman_system
+
+    hdci/run_script_kubernetes: &k8s_system
+      k8s_system: $ctx.worker_profile.k8s_system,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_system,"kubernetes"
+    hdci/prepare_stage_storage_kubernetes: *k8s_system
+    hdci/cleanup_stage_storage_kubernetes: *k8s_system
+    hdci/create_identity_kubernetes: *k8s_system
 
   _hdci_schema:
     '*':
@@ -54,16 +71,15 @@ contexts:
       hdci_schema: '@:resources/hdci.cue'
       per_repo_identity_volume_name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
 
+  _hdci_builtin_cfg:
+    '*':
       hdci_builtin_cfg:
         executors:
           with_secret_driver**: &with_secret_driver
             entrypoint_:
               - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
-            env_: $ctx.hdci.worker.identity.env
-            volumes_:
-              - name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
-                dest: /var/hd-secrets/identity
-
+            env_: $?ctx.worker_profile.identity.runner.env
+            volumes_: $?ctx.worker_profile.identity.runner.volumes
 
         scripts:
           load_secret_driver**:
@@ -84,7 +100,7 @@ contexts:
             entrypoint_:
               - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
               - '/entrypoint.sh'
-            env_: '{{ merge (deepCopy .ctx.hdci.worker.identity.env) .ctx.hdci.worker.gh.env | return }}'
+            env_: '{{ merge (default (dict) .ctx.worker_profile.identity.setup.env | deepCopy) .ctx.hdci.worker.gh.env | return }}'
             image: 'docker.io/serversideup/github-cli:alpine'
             run_: |+
               set -e
@@ -93,4 +109,4 @@ contexts:
                 --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app
               exit
             skip_executors: "*"
-            volumes: $ctx.hdci.worker.identity.volumes
+            volumes: $ctx.worker_profile.identity.setup.volumes
