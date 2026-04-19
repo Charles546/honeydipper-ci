@@ -123,7 +123,7 @@ workflows:
               volumes: $?ctx.expanded.volumes_
               env: |
                 {{ $ret := dict }}{{ range $key, $value := .ctx.expanded.env }}
-                {{ if hasPrefix "hd-lookup:" $value }}
+                {{ if (hasPrefix "hd-lookup:" $value | and (contains "#" $value | not)) }}
                 {{ $_ := set $ret $key (trimPrefix "hd-lookup:" $value | printf "hd-lookup:{SCOPED}%s" ) }}
                 {{ else }}
                 {{ $_ := set $ret $key $value }}

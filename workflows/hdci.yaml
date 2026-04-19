@@ -11,7 +11,7 @@ workflows:
     steps:
       - call_workflow: hdci/load_cfg_{{ .ctx.hdci.vcs_flavor }}
       - with:
-          - worker_name: $ctx.merged_hdci_cfg.settings.worker,ctx.hdci.worker_default,"podman_default"
+          - worker_name: $ctx.hdci_cfg.settings.worker,ctx.hdci.worker_default,"podman_default"
           - worker_profile: $ctx.hdci.workers.{{ .ctx.worker_name }},ctx.hdci.workers.{{ .ctx.hdci.worker_default }},ctx.hdci.workers.podman_default
         export:
           worker_name: $ctx.worker_name
@@ -60,15 +60,12 @@ workflows:
             - hdci/report_stage_result
             - hdci/resume_dependent_stages
     steps:
-      - call_workflow: hdci/prepare_stage_storage_{{ .ctx.script_flavor }}
-      - with:
-          hooks:
-            on_exit: hdci/cleanup_stage_storage_{{ .ctx.script_flavor }}
-        steps:
+        - steps:
           - unless:
               - $ctx.alone
             while:
               - $?ctx.required_stages
+            on_failure: exit
             steps:
               - wait: "120m"
                 with:
@@ -83,6 +80,10 @@ workflows:
           - iterate: $ctx.stage.jobs
             description: iterating through stage steps
             call_workflow: hdci/job
+            with:
+              hooks:
+                on_session: hdci/prepare_stage_storage_{{ .ctx.worker_profile.script_flavor }}
+                on_exit: hdci/cleanup_stage_storage_{{ .ctx.worker_profile.script_flavor }}
 
   hdci/job:
     with:
@@ -123,7 +124,7 @@ workflows:
     with:
       - script: $?ctx.hdci_cfg.scripts.{{ dig "script_name" "_not_exists" .ctx.job }},ctx.job
       - script: $ctx.job
-    call_workflow: hdci/run_script_{{ .ctx.script_flavor }}
+    call_workflow: hdci/run_script_{{ .ctx.worker_profile.script_flavor }}
 
   hdci/resume_dependent_stages:
     unless:

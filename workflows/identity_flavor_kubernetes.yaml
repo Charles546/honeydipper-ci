@@ -68,11 +68,11 @@ workflows:
                       - name: HD_NAMESPACE
                         value: '{{ default "default" .ctx.hdci.k8s_namespace }}'
                       - name: VAULT_ADDR
-                        value: '{{ dig "VAULT_ADDR" "" .ctx.hdci.worker.identity.env }}'
+                        value: $ctx.worker_profile.identity.setup.env.VAULT_ADDR,"http://localhost:8200"
                       - name: HD_VAULT_AUTH_PATH
                         value: $ctx.k8s_vault_auth_path
                       - name: HD_VAULT_DAEMON_ROLE
-                        value: $ctx.k8s_daemon_service_account
+                        value: $ctx.worker_profile.identity.setup.env.HD_VAULT_DAEMON_ROLE,"hdci-daemon"
                     volumeMounts:
                       - name: kubernetes-identity
                         mountPath: /var/run/secrets/kubernetes.io/serviceaccount

@@ -31,7 +31,7 @@ contexts:
         worker:
           identity:
             sec_driver: /opt/honeydipper/drivers/builtin/hd-driver-vault
-            sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-0235747-podman
+            sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-5a7105f-podman
             env:
               SECRET_PREFIX_1_REPO: 'secrets/data/hdci/gh/{{ .ctx.git_repo }}#'
               SECRET_PREFIX_2_ORG: 'secrets/data/hdci/gh/{{ with .ctx.git_repo }}{{ dir . }}{{ end }}/_org#'
@@ -44,7 +44,7 @@ contexts:
         #       GH_APP_INSTALLATION_ID: 'blah'
         #   identity:
         #     sec_driver: /opt/honeydipper/drivers/builtin/hd-driver-vault
-        #     sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-e8a5972-podman
+        #     sec_driver_image: docker.io/charleshoney/honeydipper:4.0.0-rc-5a7105f-podman
         #     env:
         #       VAULT_ADDR: http://blah:8200
         #       VAULT_ROLE_ID: hd-secret-file://identity/role_id
@@ -78,7 +78,7 @@ contexts:
           with_secret_driver**: &with_secret_driver
             entrypoint_:
               - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
-            env_: $?ctx.worker_profile.identity.runner.env
+            env_: '{{ merge (default (dict) .ctx.hdci.worker.identity.env | deepCopy) (default (dict) .ctx.worker_profile.identity.runner.env | deepCopy) | return }}'
             volumes_: $?ctx.worker_profile.identity.runner.volumes
 
         scripts:
@@ -100,7 +100,8 @@ contexts:
             entrypoint_:
               - '{{ coalesce .ctx.hdci.worker.work_dir "/local/honeydipper" }}/docker-entrypoint.sh'
               - '/entrypoint.sh'
-            env_: '{{ merge (default (dict) .ctx.worker_profile.identity.setup.env | deepCopy) .ctx.hdci.worker.gh.env | return }}'
+            env_: '{{ merge (default (dict) .ctx.hdci.worker.identity.env | deepCopy) (default (dict) .ctx.worker_profile.identity.runner.env | deepCopy) | return }}'
+            env: $ctx.hdci.worker.gh.env
             image: 'docker.io/serversideup/github-cli:alpine'
             run_: |+
               set -e
@@ -109,4 +110,4 @@ contexts:
                 --branch "${GITHUB_BRANCH:-{{ toString .ctx.git_ref | trimPrefix "refs/heads/" -}} }" app
               exit
             skip_executors: "*"
-            volumes: $ctx.worker_profile.identity.setup.volumes
+            volumes: $?ctx.worker_profile.identity.setup.volumes
