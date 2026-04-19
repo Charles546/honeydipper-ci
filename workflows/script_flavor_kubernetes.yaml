@@ -2,15 +2,7 @@
 workflows:
   hdci/run_script_kubernetes:
     no_export:
-      - k8s_cache_volumes
-      - k8s_script_steps
-      - k8s_containers
-      - k8s_init_containers
-      - k8s_main_container
-      - k8s_job
-      - k8s_env
-      - k8s_service_account_name
-      - k8s_pvc_name
+      - '*'
     with:
       - k8s_cache_volumes: $?nil
       - k8s_script_steps: $?nil
@@ -20,7 +12,6 @@ workflows:
       - k8s_pvc_name: $ctx.stage_pvc_name
       - k8s_storage_size: $ctx.worker_profile.k8s_storage_size,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_storage_size,"5Gi"
       - k8s_storage_class_name: $ctx.worker_profile.k8s_storage_class_name,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_storage_class_name
-      - k8s_system: $ctx.worker_profile.k8s_system,"k8s_default"
     steps:
       - with:
           - k8s_script_steps: |
@@ -32,73 +23,74 @@ workflows:
         iterate: $ctx.k8s_script_steps
         call_workflow: hdci/kubernetes_add_container
         description: adding kubernetes containers
-        export_on_error:
-          script_status: $labels.status
-          script_error: $labels.reason
-
-      - export:
-          k8s_main_container: '{{ with (last .ctx.k8s_containers) }}{{ . | toJson | fromJson | return }}{{ end }}'
-          k8s_init_containers: '{{ with (initial .ctx.k8s_containers) }}{{ . | toJson | fromJson | return }}{{ else }}{{ return (list) }}{{ end }}'
-
-      - export:
-          k8s_job:
-            apiVersion: batch/v1
-            kind: Job
-            metadata:
-              generateName: 'hdci-job-{{ with .ctx.git_repo }}{{ . | replace "/" "-" | lower }}{{ else }}script{{ end }}-'
-            spec:
-              backoffLimit: 1
-              template:
-                spec:
-                  restartPolicy: Never
-                  serviceAccountName: $ctx.k8s_service_account_name
-                  initContainers: $?ctx.k8s_init_containers
-                  containers:
-                    - $ctx.k8s_main_container
-                  volumes: |
-                    {{ $v := list }}
-                    {{ with .ctx.k8s_pvc_name }}
-                    {{ $v = append $v (dict "name" "workdir" "persistentVolumeClaim" (dict "claimName" .)) }}
-                    {{ end }}
-                    {{ range (default (list) .ctx.k8s_cache_volumes) }}
-                    {{ $v = append $v (dict "name" (.claimName | trunc 63) "persistentVolumeClaim" (dict "claimName" .claimName)) }}
-                    {{ end }}
-                    {{ return $v }}
 
       - call_function: '{{ .ctx.k8s_system }}.createJob'
         with:
-          job: $ctx.k8s_job
+          - job:
+              apiVersion: batch/v1
+              kind: Job
+              metadata:
+                generateName: 'hdci-job-{{ with .ctx.git_repo }}{{ . | replace "/" "-" | lower }}{{ else }}script{{ end }}-'
+              spec:
+                backoffLimit: 1
+                template:
+                  spec:
+                    restartPolicy: Never
+                    serviceAccountName: $ctx.k8s_service_account_name
+                    initContainers: '{{ with (initial .ctx.k8s_containers) }}{{ return . }}{{ else }}{{ return (list) }}{{ end }}'
+                    containers:
+                      - '{{ with (last .ctx.k8s_containers) }}{{ return . }}{{ end }}'
+                    env: |
+                      {{ $ret := list }}
+                      {{ range $k, $v := merge (default (dict) .ctx.script.env | deepCopy) (default (dict) .ctx.script.env_ | deepCopy) }}
+                      {{ if typeIs "string" $v }}{{ $ret = append $ret (dict "name" $k "value" $v) }}{{ else }}{{ $ret = append $ret (set $v "name" $k) }}{{ end }}
+                      {{ end }}
+                      {{ return $ret }}'
+                    volumes:
+                      - name: workdir
+                        persistentVolumeClaim:
+                          claimName: $ctx.k8s_pvc_name
+          - job:
+              spec:
+                template:
+                  spec:
+                    volumes+: '{{ concat (default (list) .ctx.k8s_container_volumes) (default (list) .ctx.k8s_cache_volumes) | return}}'
         export:
           _log_stream:
             provider: kubernetes
             pod_id: $ctx.jobid
-            gh_slug: $ctx.git_repo
-            stream_token: $?ctx.stream_token
-
-      - call_workflow: hdci/announce_script
+            provider_data:
+              system: $ctx.k8s_system
+            gh_slug: '{{ resolve_gh_slug .ctx.gh_slug .ctx.git_repo .event.json.repository.full_name }}'
+            stream_token: '{{ sign_pod_id .ctx.jobid (resolve_gh_slug .ctx.gh_slug .ctx.git_repo .event.json.repository.full_name) }}'
 
       - call_function: '{{ .ctx.k8s_system }}.waitForJob'
         with:
           retry: $ctx.k8s_job_wait_retry,"2"
+          hooks:
+            on_session: hdci/announce_script
+            on_exit: hdci/get_script_log_kubernetes
         export:
           script_status: '{{ eq .ctx.job_status "success" | ternary "success" "error" }}'
         export_on_error:
           script_status: error
           script_error: $labels.reason
+    export:
+      _log_stream: $?ctx._log_stream
 
-      - call_function: '{{ .ctx.k8s_system }}.getJobLog'
-        export:
-          script_log: $?ctx.output
-          script_error: '{{ eq .ctx.job_status "success" | ternary "" (coalesce .labels.reason "kubernetes job failed") }}'
-        export_on_error:
-          script_log: $?ctx.output
-          script_error: $labels.reason
+  hdci/get_script_log_kubernetes:
+    call_function: '{{ .ctx.k8s_system }}.getJobLog'
+    export:
+      script_log: $?ctx.output
+    export_on_error:
+      script_log: $?ctx.output
 
   hdci/prepare_stage_storage_kubernetes:
     with:
       - k8s_storage_size: $ctx.worker_profile.k8s_storage_size,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_storage_size,"5Gi"
       - k8s_storage_class_name: $ctx.worker_profile.k8s_storage_class_name,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_storage_class_name
-      - stage_pvc:
+      - ignore_already_exists: true
+        pvc:
           apiVersion: v1
           kind: PersistentVolumeClaim
           metadata:
@@ -110,7 +102,6 @@ workflows:
               requests:
                 storage: $ctx.k8s_storage_size
             storageClassName: $?ctx.k8s_storage_class_name
-      - pvc: $ctx.stage_pvc
     call_function: '{{ .ctx.k8s_system }}.createPVC'
     export:
       stage_pvc_name: $ctx.pvc_name
@@ -126,6 +117,7 @@ workflows:
     no_export:
       - expanded
       - k8s_current_cache_mounts
+      - k8s_current_container_mounts
     with:
       - cfg: '{{ if typeIs "string" .ctx.current }}{{ dig .ctx.current .nil .ctx.hdci_cfg.scripts | return }}{{ else }}{{ return .ctx.current }}{{ end }}'
     steps:
@@ -160,11 +152,9 @@ workflows:
         description: fetch remote script file
 
       - iterate: $?ctx.expanded.cache
-        no_export:
-          - k8s_cache_pvc_name
         steps:
           - with:
-              k8s_cache_pvc_name: '{{ with .ctx.current }}hdci-cache-{{ replace "/" "-" $.ctx.git_repo | lower }}-{{ replace "/" "-" . | lower }}-{{ trunc 7 $.ctx.git_commit }}{{ end }}'
+              k8s_cache_pvc_name: 'hdci-cache-{{ replace "/" "-" .ctx.git_repo | lower }}-{{ replace "/" "-" .ctx.current | lower }}-{{ trunc 7 .ctx.git_commit }}'
             if:
               - $?ctx.current
             unless_match:
@@ -188,48 +178,61 @@ workflows:
                 call_function: '{{ .ctx.k8s_system }}.createPVC'
             export:
               k8s_cache_volumes+:
-                - claimName: $ctx.k8s_cache_pvc_name
-          - if:
-              - $?ctx.current
-            export:
+                - persistentVolumeClaim:
+                    claimName: $ctx.k8s_cache_pvc_name
+                  name: '{{ trunc 63 .ctx.k8s_cache_pvc_name }}'
               k8s_current_cache_mounts+:
-                - claimName: '{{ with .ctx.current }}hdci-cache-{{ replace "/" "-" $.ctx.git_repo | lower }}-{{ replace "/" "-" . | lower }}-{{ trunc 7 $.ctx.git_commit }}{{ end }}'
+                - name: '{{ trunc 63 .ctx.k8s_cache_pvc_name }}'
                   mountPath: $ctx.current
         description: ensure cache PVCs exist
 
+      - iterate: '{{ concat (default (list) .ctx.expanded.volumes_) (default (list) .ctx.expanded.volumes) | return }}'
+        steps:
+          - unless_match:
+              k8s_container_volumes:
+                name: .ctx.current.name
+            export:
+              k8s_container_volumes+:
+                - '{{ omit .ctx.current "mountPath" "subPath" }}'
+              k8s_current_container_mounts+:
+                - name: $ctx.current.name
+                  mountPath: $ctx.current.dest
+                  subPath: $?ctx.current.subPath
       - with:
-          - current_env: |
-              {{ $ret := list }}
-              {{ range $k, $v := (default (dict) .ctx.expanded.env) }}
-              {{ $ret = append $ret (dict "name" $k "value" ($v | toString)) }}
-              {{ end }}
-              {{ range $k, $v := (default (dict) .ctx.k8s_env) }}
-              {{ $ret = append $ret (dict "name" $k "value" ($v | toString)) }}
-              {{ end }}
-              {{ return $ret }}
           - current_container:
               name: $ctx.expanded.container_name,'step-{{ add (len (default (list) .ctx.k8s_containers)) 1 }}'
               image: $ctx.expanded.image
-              command: '{{ with (default (list) .ctx.expanded.entrypoint_) }}{{ . | toJson | fromJson | return }}{{ else }}{{ return (list "/bin/sh" "-ec") }}{{ end }}'
+              command: '{{ with (default (list) .ctx.expanded.entrypoint_) }}{{ return . }}{{ else }}{{ return (list "/bin/sh" "-ec") }}{{ end }}'
               args: |
                 {{ $args := list }}
                 {{ with .ctx.expanded.command_ }}{{ if kindIs "slice" . }}{{ range . }}{{ $args = append $args (. | toString) }}{{ end }}{{ else }}{{ $args = append $args (. | toString) }}{{ end }}{{ end }}
                 {{ with .ctx.expanded.command }}{{ if kindIs "slice" . }}{{ range . }}{{ $args = append $args (. | toString) }}{{ end }}{{ else }}{{ $args = append $args (. | toString) }}{{ end }}{{ end }}
-                {{ $run := ( .ctx.expanded.run_ | string ) }}
+                {{ $run := ( .ctx.expanded.run_ | toString ) }}
                 {{ with .ctx.expanded.run }}{{ $run = (cat $run "\n" (. | toString)) }}{{ end }}
                 {{ with $run }}{{ $args = append $args . }}{{ end }}
                 {{ return $args }}
-              env: $ctx.current_env
-              volumeMounts: |
+              env: |
                 {{ $ret := list }}
-                {{ with $.ctx.k8s_pvc_name }}
-                {{ $ret = append $ret (dict "name" "workdir" "mountPath" (coalesce $.ctx.hdci.worker.work_dir "/local/honeydipper")) }}
+                {{ range $k, $v := merge (default (dict) .ctx.expanded.env | deepCopy) (default (dict) .ctx.expanded.env_ | deepCopy) }}
+                {{ if typeIs "string" $v }}
+                {{ if (hasPrefix "hd-lookup:" $v | and (contains "#" $v | not)) }}
+                {{ $ret = append $ret (dict "name" $k "value" (trimPrefix "hd-lookup:" $v | printf "hd-lookup:{SCOPED}%s" )) }}
+                {{ else }}
+                {{ $ret = append $ret (dict "name" $k "value" $v) }}
                 {{ end }}
-                {{ range (default (list) $.ctx.k8s_current_cache_mounts) }}
-                {{ $ret = append $ret (dict "name" (.claimName | trunc 63) "mountPath" .mountPath) }}
+                {{ else }}
+                {{ $ret = append $ret (set $v "name" $k) }}
                 {{ end }}
-                {{ return $ret }}
+                {{ end }}
+                {{ return $ret }}'
+              volumeMounts:
+                - name: workdir
+                  mountPath: $ctx.expanded.work_dir,ctx.hdci.worker.work_dir,"/local/honeydipper"
               workingDir: $ctx.expanded.work_dir,ctx.hdci.worker.work_dir,"/local/honeydipper"
+          - current_container:
+              volumeMounts+: $?ctx.k8s_current_container_mounts
+          - current_container:
+              volumeMounts+: $?ctx.k8s_current_cache_mounts
         export:
           k8s_containers+:
             - $ctx.current_container
