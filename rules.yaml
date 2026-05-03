@@ -69,11 +69,10 @@ rules:
         system: github_hdci
         trigger: hit
       if_match:
-        event:
-          json:
-            repository:
-              ":present:":
-                - full_name
+        json:
+          repository:
+            ":present:":
+              - full_name
       export:
         git_repo: $?event.json.repository.full_name
         git_ref: $?event.json.ref
