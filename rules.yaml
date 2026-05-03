@@ -78,6 +78,7 @@ rules:
         git_repo: $?event.json.repository.full_name
         git_ref: $?event.json.ref
         git_commit: $event.json.head_commit.id,event.json.commit.sha,event.json.pull_request.head.sha,""
+        git_commit_message: $event.json.head_commit.message,event.json.commit.message,event.json.pull_request.title,""
         git_branches: $?event.json.branches
         gh_event: $event.headers.X-Github-Event.0
         gh_action: $?event.json.action
