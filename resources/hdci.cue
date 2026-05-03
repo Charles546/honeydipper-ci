@@ -28,7 +28,8 @@ import "list"
     conditions: {
       gh_event!: "push" | "status" | "release" | "pull_request" | "issue_comment"
       gh_action?: string
-      git_ref?: [...string]
+      git_ref?: string | [...string]
+      ...
     }
     stages: list.MinItems(1) & [...#predefinedStages]
   }
