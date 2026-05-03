@@ -9,6 +9,7 @@ workflows:
       onboarding_base_branch: $ctx.hdci.gh_install_onboarding.base_branch
       onboarding_layer_dir: $ctx.hdci.gh_install_onboarding.layer_dir
       onboarding_gh_system: $ctx.hdci.gh_system_pat
+    on_error: continue
     steps:
       - export:
           onboarding_account: '{{ lower (trim (default "" .ctx.gh_installation_account)) }}'
