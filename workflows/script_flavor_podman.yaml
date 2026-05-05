@@ -30,6 +30,8 @@ workflows:
             podman_work_volume_mount_point: $ctx.hdci.worker.work_dir,"/local/honeydipper"
           - podman_pod_spec:
               volumes+: $?ctx.pod_cache_volumes
+              env:
+                CI: "honeydipper"
         export:
           script_log: $?ctx.podman_pod_log
           script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
