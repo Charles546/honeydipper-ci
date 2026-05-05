@@ -17,12 +17,13 @@ workflows:
         call_workflow: hdci/report_yml_error_{{ .ctx.hdci.chat_flavor }}
 
   hdci/announce_script:
-    if:
-      - $?ctx.stage.settings.notify_steps,ctx.hdci.notify_steps
-    steps:
-      - if:
-          - $?ctx.hdci.notify_in_chat
-        call_workflow: hdci/announce_script_{{ .ctx.hdci.chat_flavor }}
+    - if:
+        - $?ctx.stage.settings.notify_steps,ctx.hdci.notify_steps
+      steps:
+        - if:
+            - $?ctx.hdci.notify_in_chat
+          call_workflow: hdci/announce_script_{{ .ctx.hdci.chat_flavor }}
+    - call_workflow: hdci/announce_stage_{{ .ctx.hdci.vcs_flavor }}
 
   hdci/announce_job:
     if:
