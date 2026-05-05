@@ -47,7 +47,8 @@ workflows:
                 fi
 
                 if [ ! -f /local/honeydipper/entity_id.txt ]; then
-                  vault write -field=id identity/entity name="${ID_ROLE_NAME}" policies="hdci-per-repo" metadata=repo="gh/$GIT_REPO" > /local/honeydipper/entity_id.txt
+                  vault write -field=id identity/entity name="${ID_ROLE_NAME}" policies="hdci-per-repo" metadata=repo="gh/$GIT_REPO" \
+                    metadata=org="gh/$(dirname "$GIT_REPO")" > /local/honeydipper/entity_id.txt
                 fi
                 
                 if [ ! -f /local/honeydipper/accessor.txt ]; then
