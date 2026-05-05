@@ -57,6 +57,8 @@ workflows:
                     volumes+: '{{ concat (default (list) .ctx.k8s_container_volumes) (default (list) .ctx.k8s_cache_volumes) | return}}'
                     env+:
                       - name: CI
+                        value: "true"
+                      - name: CICD
                         value: "honeydipper"
         export:
           _log_stream:
