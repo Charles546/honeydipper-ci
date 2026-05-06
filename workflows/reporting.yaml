@@ -24,7 +24,9 @@ workflows:
           - if:
               - $?ctx.hdci.notify_in_chat
             call_workflow: hdci/announce_script_{{ .ctx.hdci.chat_flavor }}
-      - call_workflow: hdci/announce_stage_{{ .ctx.hdci.vcs_flavor }}
+      - if:
+          - $?ctx.stage_name
+        call_workflow: hdci/announce_stage_{{ .ctx.hdci.vcs_flavor }}
 
   hdci/announce_job:
     if:
