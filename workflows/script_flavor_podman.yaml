@@ -21,6 +21,7 @@ workflows:
           script_status: $labels.status
           script_error: $labels.reason
       - call_workflow: run_podman
+        context: _hdci_templating
         with:
           - podman_on_start: hdci/announce_script
             podman_pod_spec:
@@ -30,6 +31,8 @@ workflows:
             podman_work_volume_mount_point: $ctx.hdci.worker.work_dir,"/local/honeydipper"
           - podman_pod_spec:
               volumes+: $?ctx.pod_cache_volumes
+          - podman_pod_spec: '{{ render .ctx.podman_pod_spec .ctx.templating_vars | return }}'
+            podman_containers: '{{ render .ctx.podman_containers .ctx.templating_vars | return }}'
         export:
           script_log: $?ctx.podman_pod_log
           script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'

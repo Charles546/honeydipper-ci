@@ -71,6 +71,29 @@ contexts:
       hdci_schema: '@:resources/hdci.cue'
       per_repo_identity_volume_name: 'hd-worker-identity-gh-{{ replace "/" "-" .ctx.git_repo }}'
 
+  _hdci_templating:
+    '*':
+      templating_vars:
+        relay_track: $?ctx.relay_track
+        relayed_event: $?ctx.relayed_event
+        parameters: $?ctx.parameters.relayed_parameters
+        sender: $?ctx.sender
+
+        git_repo: $ctx.git_repo
+        git_ref: $ctx.git_ref
+        git_commit: $?ctx.git_commit
+        git_commit_short: $?ctx.git_commit_short
+        git_commit_message: $?ctx.git_commit_message
+        git_branches: $?ctx.git_branches
+        gh_event: $?ctx.gh_event
+        gh_action: $?ctx.gh_action
+        gh_state: $?ctx.gh_state
+        gh_issue: $?ctx.gh_issue
+        gh_status_context: $?ctx.gh_status_context
+        gh_asset_url: $?event.json.release.assets.0.browser_download_url
+        gh_asset_name: $?event.json.release.assets.0.name
+        gh_asset_digest: $?event.json.release.assets.0.digest
+
   _hdci_builtin_cfg:
     '*':
       hdci_builtin_cfg:

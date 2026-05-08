@@ -151,14 +151,17 @@ workflows:
         resume: '{{ .ctx.resume_key_prefix }}{{ .ctx.current }}'
 
   hdci/relay:
+    context: _hdci_templating
+    with:
+      rendered_parameters: '{{ render .ctx.job.parameters .ctx.templating_vars | return }}'
     send_event:
       events:
         - hdci.relay
       data:
-        git_repo: $ctx.job.parameters.relay_git_repo
+        git_repo: $ctx.rendered_parameters.relay_git_repo
         gh_installation_id: $?ctx.gh_installation_id
-        track: $ctx.job.parameters.relay_track
-        parameters: $?ctx.job.parameters.relayed_parameters
+        track: $ctx.rendered_parameters.relay_track
+        parameters: $ctx.rendered_parameters
         sender: $ctx.git_repo
         event:
           git_ref: $ctx.git_ref
