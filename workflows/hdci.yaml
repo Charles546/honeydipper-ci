@@ -98,8 +98,12 @@ workflows:
             - hdci/report_job_result
     if:
       - $?ctx.job.workflow
+    if_match:
+      job:
+        workflow:
+          - relay
     description: route to workflow or script
-    call_workflow: $?ctx.job.workflow
+    call_workflow: 'hdci/{{ dig "workflow" "_not_exists" .ctx.job }}'
     export:
       job_status: $?ctx.workflow_status,labels.status
       job_error: $?ctx.workflow_error,labels.reason
@@ -145,3 +149,25 @@ workflows:
           stage_def:
             requires: $ctx.stage_name
         resume: '{{ .ctx.resume_key_prefix }}{{ .ctx.current }}'
+
+  hdci/relay:
+    send_event:
+      events:
+        - hdci.relay
+      data:
+        git_repo: $ctx.job.parameters.relay_git_repo
+        gh_installation_id: $?ctx.gh_installation_id
+        track: $ctx.job.parameters.relay_track
+        parameters: $?ctx.job.parameters.relayed_parameters
+        sender: $ctx.git_repo
+        event:
+          git_ref: $ctx.git_ref
+          git_commit: $?ctx.git_commit
+          git_commit_short: $?ctx.git_commit_short
+          git_commit_message: $?ctx.git_commit_message
+          git_branches: $?ctx.git_branches
+          gh_event: $?ctx.gh_event
+          gh_action: $?ctx.gh_action
+          gh_state: $?ctx.gh_state
+          gh_issue: $?ctx.gh_issue
+          gh_status_context: $?ctx.gh_status_context

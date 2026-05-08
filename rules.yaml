@@ -108,3 +108,24 @@ rules:
       with:
         gh_system: github_hdci
         git_commit_short: '{{ default "" .ctx.git_commit | trunc 7 }}'
+
+  - when:
+      driver: hdci
+      rawEvent: relay
+      export:
+        git_repo: $event.git_repo
+        gh_installation_id: $event.gh_installation_id
+        git_ref: refs/heads/main
+        git_commit: HEAD
+        relay_track: $event.track
+        relayed_event: $event.event
+        parameters: $?event.parameters
+        sender: $event.sender
+    do:
+      contexts:
+        - mute
+      call_workflow: hdci
+      description: HDCI GH relay event entrance
+      with:
+        gh_system: github_hdci
+        git_commit_short: HEAD

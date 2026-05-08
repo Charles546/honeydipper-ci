@@ -60,6 +60,7 @@ import "list"
   
   #workflow_def: {
     workflow!: string
+    parameters?: {...}
   }
 
   #script_ref: {
