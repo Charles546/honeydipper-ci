@@ -103,7 +103,7 @@ workflows:
         workflow:
           - relay
     description: route to workflow or script
-    call_workflow: 'hdci/{{ dig "workflow" "_not_exists" .ctx.job }}'
+    call_workflow: 'hdci/wf/{{ dig "workflow" "_not_exists" .ctx.job }}'
     export:
       job_status: $?ctx.workflow_status,labels.status
       job_error: $?ctx.workflow_error,labels.reason
@@ -150,20 +150,21 @@ workflows:
             requires: $ctx.stage_name
         resume: '{{ .ctx.resume_key_prefix }}{{ .ctx.current }}'
 
-  hdci/relay:
+  hdci/wf/relay:
     context: _hdci_templating
     with:
-      rendered_parameters: '{{ render .ctx.job.parameters .ctx.templating_vars | return }}'
+      rendered_ctx: '{{ render .ctx.job.ctx .ctx.templating_vars | return }}'
     send_event:
       events:
         - hdci.relay
       data:
-        git_repo: $ctx.rendered_parameters.relay_git_repo
+        git_repo: $ctx.rendered_ctx.relay_git_repo
         gh_installation_id: $?ctx.gh_installation_id
-        track: $ctx.rendered_parameters.relay_track
-        parameters: $ctx.rendered_parameters
-        sender: $ctx.git_repo
-        event:
+
+        relay_sender: $ctx.git_repo
+        relay_track: $ctx.rendered_ctx.relay_track
+        relayed_data: $ctx.rendered_ctx.relayed_data
+        relayed_event:
           git_ref: $ctx.git_ref
           git_commit: $?ctx.git_commit
           git_commit_short: $?ctx.git_commit_short

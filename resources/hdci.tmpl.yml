@@ -11,9 +11,7 @@ executors:
     image: 'docker.io/serversideup/github-cli:alpine'
     run_++: |+
 
-      echo "$GH_TOKEN" | gh auth login --with-token
       gh auth setup-git
-      unset GH_TOKEN
 
   run_in_repo:
     run_++: |+

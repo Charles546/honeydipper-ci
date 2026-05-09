@@ -60,7 +60,7 @@ import "list"
   
   #workflow_def: {
     workflow!: string
-    parameters?: {...}
+    ctx?: {...}
   }
 
   #script_ref: {
@@ -74,7 +74,7 @@ import "list"
     cache?: [...#predefinedCaches]
     skip_steps?: "*" | [...#predefinedScripts]
     "skip_steps+"?: "*" | [...#predefinedScripts]
-}
+  }
 
   #with_run: {
     run: string
@@ -117,6 +117,9 @@ import "list"
     #with_run | #with_script_file
 
     script_name?: #predefinedScripts
+    if script_name != _|_ {
+      params?: {...}
+    }
 
     container_name?: string
     executor?: #predefinedExecutors | [...#predefinedExecutors]

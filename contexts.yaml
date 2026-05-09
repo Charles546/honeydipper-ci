@@ -74,10 +74,10 @@ contexts:
   _hdci_templating:
     '*':
       templating_vars:
+        relay_sender: $?ctx.sender
         relay_track: $?ctx.relay_track
         relayed_event: $?ctx.relayed_event
-        parameters: $?ctx.parameters.relayed_parameters
-        sender: $?ctx.sender
+        relayed_data: $?ctx.relayed_data
 
         git_repo: $ctx.git_repo
         git_ref: $ctx.git_ref
@@ -85,6 +85,7 @@ contexts:
         git_commit_short: $?ctx.git_commit_short
         git_commit_message: $?ctx.git_commit_message
         git_branches: $?ctx.git_branches
+
         gh_event: $?ctx.gh_event
         gh_action: $?ctx.gh_action
         gh_state: $?ctx.gh_state
@@ -93,6 +94,9 @@ contexts:
         gh_asset_url: $?event.json.release.assets.0.browser_download_url
         gh_asset_name: $?event.json.release.assets.0.name
         gh_asset_digest: $?event.json.release.assets.0.digest
+
+        params: $?ctx.rendered_params
+        ctx: $?ctx.rendered_ctx
 
   _hdci_builtin_cfg:
     '*':

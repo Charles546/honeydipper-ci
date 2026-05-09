@@ -7,7 +7,6 @@ workflows:
       - k8s_cache_volumes: $?nil
       - k8s_script_steps: $?nil
       - k8s_containers: $?nil
-      - k8s_env: $?ctx.script.env
       - k8s_service_account_name: '{{ with .ctx.git_repo }}sa-{{ . | replace "/" "-" | lower }}{{ else }}sa-hdci-default{{ end }}'
       - k8s_pvc_name: $ctx.stage_pvc_name
       - k8s_storage_size: $ctx.worker_profile.k8s_storage_size,ctx.hdci.workers.{{ .ctx.hdci.worker_default }}.k8s_storage_size,"5Gi"
@@ -24,8 +23,10 @@ workflows:
         call_workflow: hdci/kubernetes_add_container
         description: adding kubernetes containers
 
-      - call_function: '{{ .ctx.k8s_system }}.createJob'
+      - context: _hdci_templating
+        call_function: '{{ .ctx.k8s_system }}.createJob'
         with:
+          - rendered_script: '{{ render (omit .ctx.script "steps") .ctx.templating_vars | return }}'
           - job:
               apiVersion: batch/v1
               kind: Job
@@ -42,7 +43,7 @@ workflows:
                       - '{{ with (last .ctx.k8s_containers) }}{{ return . }}{{ end }}'
                     env: |
                       {{ $ret := list }}
-                      {{ range $k, $v := merge (default (dict) .ctx.script.env | deepCopy) (default (dict) .ctx.script.env_ | deepCopy) }}
+                      {{ range $k, $v := merge (default (dict) .ctx.rendered_script.env | deepCopy) (default (dict) .ctx.rendered_script.env_ | deepCopy) }}
                       {{ if typeIs "string" $v }}{{ $ret = append $ret (dict "name" $k "value" $v) }}{{ else }}{{ $ret = append $ret (set $v "name" $k) }}{{ end }}
                       {{ end }}
                       {{ return $ret }}'
@@ -123,6 +124,7 @@ workflows:
       - expanded
       - k8s_current_cache_mounts
       - k8s_current_container_mounts
+      - rendered_params
     with:
       - cfg: '{{ if typeIs "string" .ctx.current }}{{ dig .ctx.current .nil .ctx.hdci_cfg.scripts | return }}{{ else }}{{ return .ctx.current }}{{ end }}'
     steps:
@@ -139,8 +141,10 @@ workflows:
               expanded: $?ctx.hdci_cfg.executors.{{ .ctx.current }}
         description: expand container with executor
 
-      - export:
+      - context: _hdci_templating
+        export:
           expanded: $ctx.cfg
+          rendered_params: '{{ render .ctx.cfg.params .ctx.templating_vars | return }}'
         description: final merging container cfg
 
       - if:
@@ -203,7 +207,8 @@ workflows:
                 - name: $ctx.current.name
                   mountPath: $ctx.current.dest
                   subPath: $?ctx.current.subPath
-      - with:
+      - context: _hdci_templating
+        with:
           - current_container:
               name: $ctx.expanded.container_name,'step-{{ add (len (default (list) .ctx.k8s_containers)) 1 }}'
               image: $ctx.expanded.image
@@ -240,5 +245,5 @@ workflows:
               volumeMounts+: $?ctx.k8s_current_cache_mounts
         export:
           k8s_containers+:
-            - $ctx.current_container
+            - '{{ render .ctx.current_container .ctx.templating_vars | return }}'
         description: build kubernetes container spec

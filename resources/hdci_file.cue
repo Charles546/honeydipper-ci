@@ -59,7 +59,7 @@ import "list"
   
   #workflow_def: {
     workflow!: string
-    parameters?: {...}
+    ctx?: {...}
   }
   
   #script_ref: {
@@ -121,6 +121,9 @@ import "list"
     #with_run | #with_script_file
 
     script_name?: string
+    if script_name != _|_ {
+      params?: {...}
+    }
 
     container_name?: string
     executor?: string | [...string]

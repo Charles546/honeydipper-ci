@@ -114,13 +114,15 @@ rules:
       rawEvent: relay
       export:
         git_repo: $event.git_repo
-        gh_installation_id: $event.gh_installation_id
         git_ref: refs/heads/main
         git_commit: HEAD
-        relay_track: $event.track
-        relayed_event: $event.event
-        parameters: $?event.parameters
-        sender: $event.sender
+        gh_installation_id: $event.gh_installation_id
+        relay_sender: $event.relay_sender
+        relay_track: $event.relay_track
+        relayed_event: $event.relayed_event
+        relayed_data: $?event.relayed_data
+        _meta_event: >-
+          Relay: {{ .event.relay_track }} from {{ .event.relay_sender }}
     do:
       contexts:
         - mute

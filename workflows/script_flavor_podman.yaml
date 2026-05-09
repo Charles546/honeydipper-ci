@@ -32,7 +32,6 @@ workflows:
           - podman_pod_spec:
               volumes+: $?ctx.pod_cache_volumes
           - podman_pod_spec: '{{ render .ctx.podman_pod_spec .ctx.templating_vars | return }}'
-            podman_containers: '{{ render .ctx.podman_containers .ctx.templating_vars | return }}'
         export:
           script_log: $?ctx.podman_pod_log
           script_status: '{{ empty .ctx.podman_error | and (eq .labels.status "success") | ternary "success" "error" }}'
@@ -59,6 +58,7 @@ workflows:
       - expanded
       - cache_volumes
       - podman_volume_name
+      - rendered_params
     with:
         - cfg: '{{ if typeIs "string" .ctx.current }}{{ dig .ctx.current .nil .ctx.hdci_cfg.scripts | return }}{{ else }}{{ return .ctx.current }}{{ end }}'
         - cache_volumes: $?nil
@@ -75,8 +75,10 @@ workflows:
           - export:
               expanded: $?ctx.hdci_cfg.executors.{{ .ctx.current }}
         description: expand container with executor
-      - export:
+      - context: _hdci_templating
+        export:
           expanded: $ctx.cfg
+          rendered_params: '{{ render .ctx.cfg.params .ctx.templating_vars | return }}'
         description: final merging container cfg
       - if:
           - $?ctx.expanded.script_file
@@ -117,7 +119,8 @@ workflows:
                   dest: $ctx.current
             description: add to container cache volume
         description: ensure cache volumes exist
-      - with:
+      - context: _hdci_templating
+        with:
           - current_container:
               name: $?ctx.expanded.container_name
               image: $ctx.expanded.image
@@ -125,7 +128,7 @@ workflows:
               command: $?ctx.expanded.command_
               volumes: $?ctx.expanded.volumes_
               env: |
-                {{ $ret := dict }}{{ range $key, $value := .ctx.expanded.env }}
+                {{ $ret := dict }}{{ range $key, $value := (default (dict) .ctx.script.env | deepCopy | merge .ctx.expanded.env) }}
                 {{ if (hasPrefix "hd-lookup:" $value | and (contains "#" $value | not)) }}
                 {{ $_ := set $ret $key (trimPrefix "hd-lookup:" $value | printf "hd-lookup:{SCOPED}%s" ) }}
                 {{ else }}
@@ -149,5 +152,5 @@ workflows:
                 CICD: "honeydipper"
         export:
           podman_containers+:
-            - $ctx.current_container
+            - '{{ render .ctx.current_container .ctx.templating_vars | return }}'
         description: build container spec
