@@ -26,6 +26,7 @@ workflows:
                 ID_ROLE_FOLDER: $ctx.hdci_worker_auth_folder,"approle"
                 GIT_REPO: $ctx.git_repo
               image: hashicorp/vault:latest
+              user: root
               run: |
                 set -e
                 set -x
