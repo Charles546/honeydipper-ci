@@ -127,6 +127,7 @@ workflows:
               entrypoint: $?ctx.expanded.entrypoint_
               command: $?ctx.expanded.command_
               volumes: $?ctx.expanded.volumes_
+              user: $?ctx.expanded.user
               env: |
                 {{ $ret := dict }}{{ range $key, $value := (default (dict) .ctx.script.env | deepCopy | merge .ctx.expanded.env) }}
                 {{ if (hasPrefix "hd-lookup:" $value | and (contains "#" $value | not)) }}
