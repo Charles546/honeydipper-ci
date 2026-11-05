@@ -84,6 +84,7 @@ contexts:
         git_commit: $?ctx.git_commit
         git_commit_short: $?ctx.git_commit_short
         git_commit_message: $?ctx.git_commit_message
+        git_commit_subject: $?ctx.git_commit_subject
         git_branches: $?ctx.git_branches
 
         gh_event: $?ctx.gh_event

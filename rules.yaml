@@ -78,6 +78,7 @@ rules:
         git_ref: $event.json.ref,"{{ with .event.json.release }}refs/tags/{{ .tag_name }}{{ end }}"
         git_commit: $event.json.head_commit.id,event.json.commit.sha,event.json.pull_request.head.sha,""
         git_commit_message: $event.json.head_commit.message,event.json.commit.message,event.json.pull_request.title,""
+        git_commit_subject: '{{ $j := default (dict) .event.json }}{{ coalesce (dig "message" "" (default (dict) $j.head_commit)) (dig "message" "" (default (dict) $j.commit)) (dig "title" "" (default (dict) $j.pull_request)) | default "" | splitList "\n" | first | trim }}'  # first line of the resolved commit message
         git_branches: $?event.json.branches
         gh_event: $event.headers.X-Github-Event.0
         gh_action: $?event.json.action
